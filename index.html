@@ -273,6 +273,12 @@
     syncToCloud();
   }
 
+  function getSafeArrows(arrows) {
+    if (!arrows) return [];
+    if (Array.isArray(arrows)) return arrows;
+    return Object.values(arrows);
+  }
+
   function drawTarget() {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -287,7 +293,7 @@
       drawTripleSpotOnCanvas(ctx, 180, 400, r);
     }
 
-    var viewingArrows = endsData[activeViewingEnd - 1].arrows || [];
+    var viewingArrows = getSafeArrows(endsData[activeViewingEnd - 1] ? endsData[activeViewingEnd - 1].arrows : []);
     for (var i = 0; i < viewingArrows.length; i++) {
       var arrow = viewingArrows[i];
       ctx.beginPath();
@@ -449,13 +455,14 @@
   }
 
   function checkAndUpdateFinishedState() {
-    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + (end.arrows ? end.arrows.length : 0); }, 0);
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + getSafeArrows(end.arrows).length; }, 0);
     var maxArrows = maxEnds * arrowsPerEnd;
     
     if (totalArrowsCount < maxArrows) {
       isFinished = false;
       for (var i = 0; i < endsData.length; i++) {
-        if (!endsData[i].arrows || endsData[i].arrows.length < arrowsPerEnd) {
+        var arr = getSafeArrows(endsData[i].arrows);
+        if (arr.length < arrowsPerEnd) {
           currentEnd = i + 1;
           break;
         }
@@ -468,7 +475,7 @@
 
   canvas.addEventListener('pointerdown', function(e) {
     var pos = getCanvasCoords(e);
-    var currentTargetArrows = endsData[activeViewingEnd - 1].arrows || [];
+    var currentTargetArrows = getSafeArrows(endsData[activeViewingEnd - 1] ? endsData[activeViewingEnd - 1].arrows : []);
     
     var clickedIdx = -1;
     for (var i = currentTargetArrows.length - 1; i >= 0; i--) {
@@ -493,7 +500,9 @@
       if (currentTargetArrows.length >= arrowsPerEnd) return;
 
       var result = calculateScoreFromCoords(pos.x, pos.y);
-      if (!endsData[activeViewingEnd - 1].arrows) endsData[activeViewingEnd - 1].arrows = [];
+      if (!endsData[activeViewingEnd - 1].arrows || !Array.isArray(endsData[activeViewingEnd - 1].arrows)) {
+        endsData[activeViewingEnd - 1].arrows = [];
+      }
       endsData[activeViewingEnd - 1].arrows.push({ x: pos.x, y: pos.y, score: result.score, isX: result.isX });
       recalcEndScore(activeViewingEnd - 1);
 
@@ -510,7 +519,7 @@
   canvas.addEventListener('pointermove', function(e) {
     if (draggingArrowIdx !== -1) {
       var pos = getCanvasCoords(e);
-      var currentTargetArrows = endsData[activeViewingEnd - 1].arrows;
+      var currentTargetArrows = getSafeArrows(endsData[activeViewingEnd - 1].arrows);
       currentTargetArrows[draggingArrowIdx].x = pos.x;
       currentTargetArrows[draggingArrowIdx].y = pos.y;
 
@@ -537,7 +546,7 @@
   function recalcEndScore(endIdx) {
     var end = endsData[endIdx];
     var sum = 0;
-    var arrows = end.arrows || [];
+    var arrows = getSafeArrows(end.arrows);
     for (var i = 0; i < arrows.length; i++) {
       var a = arrows[i];
       if (typeof a.score === 'number') sum += a.score;
@@ -547,7 +556,7 @@
   }
 
   function autoCompleteCurrentEnd() {
-    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + (end.arrows ? end.arrows.length : 0); }, 0);
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + getSafeArrows(end.arrows).length; }, 0);
     var maxArrows = maxEnds * arrowsPerEnd;
 
     if (totalArrowsCount >= maxArrows) {
@@ -581,7 +590,7 @@
   }
 
   function undoArrow() {
-    var currentTargetArrows = endsData[activeViewingEnd - 1].arrows || [];
+    var currentTargetArrows = getSafeArrows(endsData[activeViewingEnd - 1].arrows);
     if (currentTargetArrows.length > 0) {
       currentTargetArrows.pop();
       recalcEndScore(activeViewingEnd - 1);
@@ -605,7 +614,7 @@
   }
 
   function analyzeCurrentEnd(endIdx) {
-    var arrows = endsData[endIdx].arrows || [];
+    var arrows = getSafeArrows(endsData[endIdx] ? endsData[endIdx].arrows : []);
     if (arrows.length === 0) {
       return "本趟尚未發箭，點擊靶面記錄落點將顯示即時技術提醒...";
     }
@@ -668,7 +677,7 @@
 
     for (var e = 0; e < endsData.length; e++) {
       var end = endsData[e];
-      var arrows = end.arrows || [];
+      var arrows = getSafeArrows(end.arrows);
       for (var a = 0; a < arrows.length; a++) {
         var arrow = arrows[a];
         allArrows.push(arrow);
@@ -733,7 +742,7 @@
       var html = '';
       for (var i = 0; i < maxEnds; i++) {
         var num = i + 1;
-        var arrows = endsData[i].arrows || [];
+        var arrows = getSafeArrows(endsData[i] ? endsData[i].arrows : []);
         var label = '第 ' + num + ' 趟 (' + arrows.length + '/' + arrowsPerEnd + ' 箭)';
         if (num === currentEnd && !isFinished) label += ' [進行中]';
         html += '<option value="' + num + '" ' + (num === activeViewingEnd ? 'selected' : '') + '>' + label + '</option>';
@@ -742,7 +751,7 @@
     }
 
     var currentContainer = document.getElementById('currentEndArrows');
-    var viewingArrows = endsData[activeViewingEnd - 1].arrows || [];
+    var viewingArrows = getSafeArrows(endsData[activeViewingEnd - 1] ? endsData[activeViewingEnd - 1].arrows : []);
     
     if (currentContainer) {
       if (viewingArrows.length === 0) {
@@ -759,7 +768,7 @@
     var totalScore = 0, totalArrows = 0, count10 = 0, countX = 0;
     for (var e = 0; e < endsData.length; e++) {
       var end = endsData[e];
-      var arrows = end.arrows || [];
+      var arrows = getSafeArrows(end.arrows);
       for (var a = 0; a < arrows.length; a++) {
         var arrow = arrows[a];
         totalArrows++;
@@ -788,7 +797,7 @@
       var tableHtml = '';
       for (var i = 0; i < endsData.length; i++) {
         var e = endsData[i];
-        var arrows = e.arrows || [];
+        var arrows = getSafeArrows(e.arrows);
         var badges = '';
         for (var j = 0; j < arrows.length; j++) {
           badges += '<span class="arrow-badge score-' + arrows[j].score + '">' + arrows[j].score + '</span>';
@@ -812,7 +821,7 @@
     var rawName = document.getElementById('studentName').value.trim();
     var studentName = rawName || '未具名學生';
 
-    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + (end.arrows ? end.arrows.length : 0); }, 0);
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + getSafeArrows(end.arrows).length; }, 0);
     var maxArrows = maxEnds * arrowsPerEnd;
     var currentAdvice = (isFinished || totalArrowsCount >= maxArrows) ? analyzeFullMatch() : analyzeCurrentEnd(activeViewingEnd - 1);
 
@@ -839,7 +848,6 @@
     }
   }
 
-  // 📸 強效相容版：支援手機端 (iOS Safari / Android Chrome / LINE) 下載 JPG
   function downloadMinimalJPG() {
     document.getElementById('expTotalScore').innerText = document.getElementById('totalScore').innerText;
     document.getElementById('expArrowCount').innerText = document.getElementById('arrowCount').innerText;
@@ -864,7 +872,7 @@
     for (var e = 0; e < endsData.length; e++) {
       var end = endsData[e];
       var color = endColors[e % endColors.length];
-      var arrows = end.arrows || [];
+      var arrows = getSafeArrows(end.arrows);
       for (var a = 0; a < arrows.length; a++) {
         var arrow = arrows[a];
         
@@ -891,7 +899,7 @@
     for (var i = 0; i < endsData.length; i++) {
       var end = endsData[i];
       var color = endColors[i % endColors.length];
-      var arrows = end.arrows || [];
+      var arrows = getSafeArrows(end.arrows);
       var badges = '';
       for (var j = 0; j < arrows.length; j++) {
         badges += '<span class="arrow-badge score-' + arrows[j].score + '">' + arrows[j].score + '</span>';
@@ -916,7 +924,6 @@
       var distStr = getDistanceString();
       var fileName = studentName + '_' + dateStr + '_' + distStr + '.jpg';
 
-      // 手機端相容處理策略
       try {
         var link = document.createElement('a');
         link.download = fileName;
@@ -925,7 +932,6 @@
         link.click();
         document.body.removeChild(link);
       } catch(e) {
-        // iPhone / Safari 相容：新視窗開啟圖片，供學生長按圖片儲存
         var newWin = window.open();
         if (newWin) {
           newWin.document.write('<p style="text-align:center;font-size:16px;">長按下方圖片即可儲存成績單：</p><img src="' + jpgUrl + '" style="width:100%;max-width:500px;display:block;margin:0 auto;"/>');
@@ -937,7 +943,7 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
-    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + (end.arrows ? end.arrows.length : 0); }, 0);
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + getSafeArrows(end.arrows).length; }, 0);
     if (totalArrowsCount > 0 && !isFinished) {
       e.preventDefault();
       e.returnValue = '測驗正在進行中，確定要離開頁面嗎？離開後請重新打開頁面即可恢復進度。';

@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>射箭隊訓練計分系統 - 學生端</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- Firebase 雲端資料庫 SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <style>
     :root {
       --bg-color: #f4f6f8;
@@ -66,24 +71,13 @@
     }
 
     .distance-input-wrapper {
-      display: flex;
-      align-items: center;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #fff;
-      padding-right: 8px;
+      display: flex; align-items: center; border: 1px solid #ccc;
+      border-radius: 6px; background: #fff; padding-right: 8px;
     }
     .distance-input-wrapper input {
-      border: none !important;
-      outline: none;
-      padding: 8px 4px 8px 8px;
+      border: none !important; outline: none; padding: 8px 4px 8px 8px;
     }
-    .distance-unit {
-      font-size: 0.85rem;
-      font-weight: bold;
-      color: #555;
-      user-select: none;
-    }
+    .distance-unit { font-size: 0.85rem; font-weight: bold; color: #555; user-select: none; }
 
     .ai-box {
       background: #eef6ff; border: 1px solid #b6d4fe; border-radius: 8px;
@@ -94,15 +88,10 @@
     #minimalExportCard {
       position: absolute; left: -9999px; top: -9999px;
       width: 420px; background: #ffffff; padding: 20px; border-radius: 12px;
-      box-sizing: border-box; text-align: center; font-family: -apple-system, sans-serif;
-      color: #333;
+      box-sizing: border-box; text-align: center; font-family: -apple-system, sans-serif; color: #333;
     }
-    .mini-stats-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;
-    }
-    .mini-stat-box {
-      background: #f4f6f8; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;
-    }
+    .mini-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+    .mini-stat-box { background: #f4f6f8; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
     .mini-stat-val { font-size: 1.4rem; font-weight: bold; color: #1976d2; }
     .mini-stat-lbl { font-size: 0.75rem; color: #666; margin-top: 2px; }
     
@@ -159,8 +148,7 @@
     </div>
 
     <h3>檢視/修改趟次：
-      <select id="editingEndSelect" onchange="selectEndToView()" style="font-size: 0.95rem; padding: 4px 8px;">
-      </select>
+      <select id="editingEndSelect" onchange="selectEndToView()" style="font-size: 0.95rem; padding: 4px 8px;"></select>
     </h3>
     <p style="font-size: 0.8rem; color: #d32f2f; font-weight: bold; margin-top: -5px;">
       💡 提示：按住靶面上箭號中心可<b>拖曳修改落點</b>
@@ -213,8 +201,7 @@
 
   <canvas id="exportCanvas" width="360" height="480" style="margin: 0 auto; display: block; border-radius: 8px;"></canvas>
 
-  <div id="expAiAdvice" style="margin-top: 10px; font-size: 0.8rem; color: #1976d2; font-weight: bold; text-align: left; background: #eef6ff; padding: 8px; border-radius: 6px;">
-  </div>
+  <div id="expAiAdvice" style="margin-top: 10px; font-size: 0.8rem; color: #1976d2; font-weight: bold; text-align: left; background: #eef6ff; padding: 8px; border-radius: 6px;"></div>
 
   <table class="exp-table">
     <thead>
@@ -229,6 +216,18 @@
 </div>
 
 <script>
+  // 🔥 已直接嵌入您的 Firebase 雲端網址
+  var firebaseConfig = {
+    databaseURL: "https://archery-team-default-rtdb.firebaseio.com/"
+  };
+  var database = null;
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    database = firebase.database();
+  } catch(e) { console.log("Firebase 初始化失敗，將降級為本地快取存取"); }
+
   var targetType = 'triple';
   var currentEnd = 1;
   var activeViewingEnd = 1;
@@ -238,14 +237,10 @@
   var isFinished = false;
   var draggingArrowIdx = -1;
 
-  // 10 趟專用顏色庫 (清晰區分趟次)
   var endColors = [
     '#1976D2', '#D32F2F', '#388E3C', '#F57C00', '#7B1FA2',
     '#0097A7', '#E64A19', '#5D4037', '#455A64', '#C2185B'
   ];
-
-  var broadcastChannel = null;
-  try { broadcastChannel = new BroadcastChannel('archery_scoring_channel'); } catch (e) {}
 
   var canvas = document.getElementById('targetCanvas');
   var ctx = canvas.getContext('2d');
@@ -428,11 +423,9 @@
     return { score: score, isX: isX };
   }
 
-  // 🎯 計算箭隻相對於自身靶心的偏差向量 (dx, dy)
   function getArrowOffset(x, y) {
     if (targetType === 'triple') {
       var centers = [{ cx: 180, cy: 80 }, { cx: 180, cy: 240 }, { cx: 180, cy: 400 }];
-      // 找出最近的靶心
       var closestCenter = centers[0];
       var minD = Math.hypot(x - centers[0].cx, y - centers[0].cy);
       for (var i = 1; i < centers.length; i++) {
@@ -610,7 +603,6 @@
     }
   }
 
-  // 🎯 重構 AI 當趟技術提醒（歸一化相對偏差）
   function analyzeCurrentEnd(endIdx) {
     var arrows = endsData[endIdx].arrows;
     if (arrows.length === 0) {
@@ -636,7 +628,6 @@
     var avgDx = sumDx / arrows.length;
     var avgDy = sumDy / arrows.length;
 
-    // 計算箭隻相對於相對重心的離散半徑
     var totalDistance = 0;
     for (var i = 0; i < arrows.length; i++) {
       var offset = getArrowOffset(arrows[i].x, arrows[i].y);
@@ -652,7 +643,7 @@
     var msg = "🎯 <b>第 " + (endIdx + 1) + " 趟即時提醒 (小計 " + endScore + " 分)：</b><br>";
 
     if (avgSpreadRadius > 35) {
-      msg += "⚠️ <b>落點過於分散：</b>本趟箭隻分數較低且分佈較廣。雖然平均落點接近「" + posName + "」，但離散度高，代表發力動作（如鉤弦靠弦點、放箭節奏）不一致，請統一瞄準時間。";
+      msg += "⚠️ <b>落點過於分散：</b>本趟箭隻分數較低且分佈較廣。雖然落點平均座標接近「" + posName + "」，但離散度高，代表發力動作（如鉤弦靠弦點、放箭節奏）不一致，請統一瞄準時間。";
     } else if (posName === "正中心" && lowCount === 0) {
       msg += "✨ <b>穩定高分：</b>本趟發力與節奏非常優秀！箭隻緊密集中於黃心，請保持目前的發放氣息。";
     } else {
@@ -669,7 +660,6 @@
     return msg;
   }
 
-  // 🏆 重構 AI 全場測驗總評語（歸一化相對偏差）
   function analyzeFullMatch() {
     var allArrows = [];
     var totalScore = 0;
@@ -814,13 +804,15 @@
   }
 
   function syncToCloud() {
+    var rawName = document.getElementById('studentName').value.trim();
+    var studentName = rawName || '未具名學生';
+
     var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + end.arrows.length; }, 0);
     var maxArrows = maxEnds * arrowsPerEnd;
-    
     var currentAdvice = (isFinished || totalArrowsCount >= maxArrows) ? analyzeFullMatch() : analyzeCurrentEnd(activeViewingEnd - 1);
 
     var studentData = {
-      name: document.getElementById('studentName').value || '未具名學生',
+      name: studentName,
       distance: getDistanceString(),
       targetType: targetType,
       totalScore: document.getElementById('totalScore').innerText,
@@ -834,15 +826,14 @@
     };
 
     var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
-    teamData[studentData.name] = studentData;
+    teamData[studentName] = studentData;
     localStorage.setItem('archery_team_data', JSON.stringify(teamData));
 
-    if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'UPDATE', data: teamData });
+    if (database && rawName) {
+      database.ref('students/' + studentName).set(studentData);
     }
   }
 
-  // 📸 匯出 JPG：包含彩色趟次數字與對應表格標籤
   function downloadMinimalJPG() {
     document.getElementById('expTotalScore').innerText = document.getElementById('totalScore').innerText;
     document.getElementById('expArrowCount').innerText = document.getElementById('arrowCount').innerText;
@@ -864,7 +855,6 @@
       drawTripleSpotOnCanvas(eCtx, 180, 400, 70);
     }
 
-    // 繪製全場所有趟次箭隻（帶趟次數字與彩色外框）
     for (var e = 0; e < endsData.length; e++) {
       var end = endsData[e];
       var color = endColors[e % endColors.length];

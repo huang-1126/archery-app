@@ -139,13 +139,13 @@
       </div>
 
       <select id="targetType" onchange="switchTargetType()">
-        <option value="triple" selected>室內賽三聯靶 (3箭×10趟/300分)</option>
-        <option value="single">單靶 (10環/360分)</option>
+        <option value="single" selected>單靶 (10環/360分)</option>
+        <option value="triple">室內賽三聯靶 (3箭×10趟/300分)</option>
         <option value="compound">複合弓六環靶 (5-10環/360分)</option>
       </select>
     </div>
 
-    <canvas id="targetCanvas" width="360" height="480"></canvas>
+    <canvas id="targetCanvas" width="360" height="360"></canvas>
 
     <div class="controls">
       <button class="btn-secondary" onclick="undoArrow()">撤銷最後一箭</button>
@@ -160,7 +160,7 @@
         <div class="stat-label">當前總分</div>
       </div>
       <div class="stat-box">
-        <div class="stat-value" id="arrowCount">0 / 30</div>
+        <div class="stat-value" id="arrowCount">0 / 36</div>
         <div class="stat-label">總箭數</div>
       </div>
       <div class="stat-box">
@@ -231,7 +231,7 @@
       <div class="mini-stat-lbl">總得分</div>
     </div>
     <div class="mini-stat-box">
-      <div class="mini-stat-val" id="expArrowCount">0 / 30</div>
+      <div class="mini-stat-val" id="expArrowCount">0 / 36</div>
       <div class="mini-stat-lbl">總箭數</div>
     </div>
     <div class="mini-stat-box">
@@ -240,7 +240,7 @@
     </div>
   </div>
 
-  <canvas id="exportCanvas" width="360" height="480" style="margin: 0 auto; display: block; border-radius: 8px;"></canvas>
+  <canvas id="exportCanvas" width="360" height="360" style="margin: 0 auto; display: block; border-radius: 8px;"></canvas>
 
   <div id="expAiAdvice" style="margin-top: 10px; font-size: 0.8rem; color: #1976d2; font-weight: bold; text-align: left; background: #eef6ff; padding: 8px; border-radius: 6px;"></div>
 
@@ -268,11 +268,12 @@
     database = firebase.database();
   } catch(e) { console.log("Firebase 初始化失敗"); }
 
-  var targetType = 'triple';
+  // 設定預設靶型為單靶 (single)
+  var targetType = 'single';
   var currentEnd = 1;
   var activeViewingEnd = 1;
-  var maxEnds = 10;
-  var arrowsPerEnd = 3;
+  var maxEnds = 6;
+  var arrowsPerEnd = 6;
   var endsData = [];
   var isFinished = false;
   var draggingArrowIdx = -1;
@@ -898,7 +899,6 @@
     return yyyy + '/' + mm + '/' + dd;
   }
 
-  // 📸 生成與下載 JPG（只記錄年月日）
   function downloadMinimalJPG() {
     var btn = document.getElementById('exportBtn');
     btn.innerText = '⏳ 正在生成成績單中...';
@@ -1012,7 +1012,7 @@
     if (teamData[studentName] && teamData[studentName].endsData) {
       var saved = teamData[studentName];
       if (confirm('檢測到您上次有未完成的測驗紀錄 (' + saved.arrowCount + ')，是否要恢復紀錄？')) {
-        targetType = saved.targetType || 'triple';
+        targetType = saved.targetType || 'single';
         document.getElementById('targetType').value = targetType;
         
         if (saved.distance) {

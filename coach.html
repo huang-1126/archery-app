@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>射箭隊全隊即時監控系統 - 教練端</title>
+  
+  <!-- Firebase 雲端資料庫 SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <style>
     :root {
       --bg-color: #f4f6f8;
@@ -26,7 +31,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.08); box-sizing: border-box;
     }
     .coach-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
       gap: 15px; width: 100%; margin-top: 15px;
     }
     .student-card {
@@ -58,41 +63,56 @@
     .mini-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.8rem; }
     .mini-table th, .mini-table td { border-bottom: 1px solid #eee; padding: 4px 2px; text-align: center; }
     .mini-table th { background: #f8f9fa; color: #555; }
+
+    .coach-ai-box {
+      width: 100%; background: #f0f7ff; border-left: 3px solid #1976d2;
+      padding: 8px; border-radius: 4px; font-size: 0.78rem; color: #004085;
+      margin-top: 8px; box-sizing: border-box; line-height: 1.35;
+    }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🎯 全隊學生即時落點與每箭分數監控儀表板 (教練專用)</h1>
-  <button class="btn-clear" onclick="clearTeamData()">清空全隊舊成績</button>
+  <h1>🎯 全隊學生即時落點與分數監控儀表板 (教練專用)</h1>
+  <button class="btn-clear" onclick="clearTeamData()">清空全隊雲端成績</button>
 </div>
 
 <div class="container">
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h2 style="margin:0; font-size: 1.1rem;">即時監控列表</h2>
-      <span style="font-size: 0.85rem; color: #666;">系統即時更新中...</span>
+      <span style="font-size: 0.85rem; color: #2e7d32; font-weight: bold;">🟢 雲端同步即時更新中</span>
     </div>
     <div class="coach-grid" id="coachDashboard"></div>
   </div>
 </div>
 
 <script>
+  // 🔥 已直接嵌入您的 Firebase 雲端網址
+  var firebaseConfig = {
+    databaseURL: "https://archery-team-default-rtdb.firebaseio.com/"
+  };
+  var database = null;
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    database = firebase.database();
+  } catch(e) { console.log("Firebase 初始化失敗"); }
+
   var coachViewState = {};
 
-  var broadcastChannel = null;
-  try {
-    broadcastChannel = new BroadcastChannel('archery_scoring_channel');
-    broadcastChannel.onmessage = function(event) {
-      if (event.data && event.data.type === 'UPDATE') {
-        updateDashboardData(event.data.data);
-      }
-    };
-  } catch (e) {}
-
-  setInterval(function() {
-    updateDashboardData();
-  }, 1000);
+  if (database) {
+    database.ref('students').on('value', function(snapshot) {
+      var teamData = snapshot.val() || {};
+      updateDashboardData(teamData);
+    });
+  } else {
+    setInterval(function() {
+      updateDashboardData();
+    }, 1000);
+  }
 
   function updateDashboardData(data) {
     var teamData = data || JSON.parse(localStorage.getItem('archery_team_data') || '{}');
@@ -101,7 +121,7 @@
     
     var keys = Object.keys(teamData);
     if (keys.length === 0) {
-      dashboard.innerHTML = '<p style="color:#777;">目前尚無學生登入記分，請讓學生開啟 student.html 開始測試。</p>';
+      dashboard.innerHTML = '<p style="color:#777;">目前尚無學生登入記分，請讓學生開啟學生端網址開始測試。</p>';
       return;
     }
 
@@ -124,6 +144,7 @@
       document.getElementById('count_' + i).innerText = student.arrowCount;
       document.getElementById('x10_' + i).innerText = student.x10Count;
       document.getElementById('time_' + i).innerText = student.lastUpdated;
+      document.getElementById('ai_' + i).innerHTML = student.aiAdvice || "數據分析中...";
 
       var selectEl = document.getElementById('select_' + i);
       var selectedEnd = coachViewState[student.name] || (selectEl ? selectEl.value : 'all');
@@ -145,13 +166,13 @@
     for (var i = 0; i < keys.length; i++) {
       var student = teamData[keys[i]];
       var currentViewingEnd = coachViewState[student.name] || 'all';
+      var maxEndsCount = (student.endsData) ? student.endsData.length : 6;
 
       var options = '<option value="all" ' + (currentViewingEnd === 'all' ? 'selected' : '') + '>🎯 全場總落點 (全部箭隻)</option>';
-      for (var e = 1; e <= 6; e++) {
+      for (var e = 1; e <= maxEndsCount; e++) {
         options += '<option value="' + e + '" ' + (String(currentViewingEnd) === String(e) ? 'selected' : '') + '>第 ' + e + ' 趟</option>';
       }
 
-      // 若為三聯靶，高度擴展為 280px，防止第 3 個靶面被切掉
       var canvasHeight = (student.targetType === 'triple') ? 280 : 200;
 
       html += '<div class="student-card" id="card_' + i + '">' +
@@ -168,7 +189,9 @@
         '</div>' +
         '<canvas id="miniTarget_' + i + '" width="200" height="' + canvasHeight + '"></canvas>' +
         
-        '<div style="width: 100%; max-height: 180px; overflow-y: auto;">' +
+        '<div class="coach-ai-box" id="ai_' + i + '">數據分析中...</div>' +
+
+        '<div style="width: 100%; max-height: 160px; overflow-y: auto; margin-top: 8px;">' +
           '<table class="mini-table">' +
             '<thead>' +
               '<tr>' +
@@ -182,7 +205,7 @@
         '</div>' +
 
         '<div style="font-size: 0.75rem; color: #666; margin-top: 8px; width: 100%; text-align: right;">' +
-          '10分/X環：<strong id="x10_' + i + '">' + student.x10Count + '</strong> | 更新：<span id="time_' + i + '">' + student.lastUpdated + '</span>' +
+          '10分/X分：<strong id="x10_' + i + '">' + student.x10Count + '</strong> | 更新：<span id="time_' + i + '">' + student.lastUpdated + '</span>' +
         '</div>' +
       '</div>';
     }
@@ -213,10 +236,8 @@
 
   function drawStudentTarget(canvas, student, selectedEnd) {
     var mCtx = canvas.getContext('2d');
-
     mCtx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 依靶面類型分流縮放
+
     if (student.targetType === 'single') {
       var scale = 200 / 360;
       drawSingleTargetOnCanvas(mCtx, 100, 100, 170 * scale);
@@ -224,7 +245,6 @@
       var scale = 200 / 360;
       drawCompoundTargetOnCanvas(mCtx, 100, 100, 170 * scale);
     } else {
-      // 三聯靶專屬縮放計算，完整展現上中下 3 個靶面
       drawTripleSpotOnCanvasCoach(mCtx);
     }
 
@@ -247,7 +267,6 @@
       var drawX, drawY;
 
       if (student.targetType === 'triple') {
-        // 三聯靶座標對應縮放 (學生端 height=480, width=360 -> 教練端 height=280, width=200)
         drawX = arrow.x * (200 / 360);
         drawY = arrow.y * (280 / 480);
       } else {
@@ -295,12 +314,9 @@
     cCtx.fillRect(0, 0, cx * 2, cy * 2);
 
     var rings = [
-      { ratio: 1.0, color: '#00BFFF' },
-      { ratio: 0.833, color: '#00BFFF' },
-      { ratio: 0.666, color: '#FF0000' },
-      { ratio: 0.5, color: '#FF0000' },
-      { ratio: 0.333, color: '#FFE500' },
-      { ratio: 0.166, color: '#FFE500' }
+      { ratio: 1.0, color: '#00BFFF' }, { ratio: 0.833, color: '#00BFFF' },
+      { ratio: 0.666, color: '#FF0000' }, { ratio: 0.5, color: '#FF0000' },
+      { ratio: 0.333, color: '#FFE500' }, { ratio: 0.166, color: '#FFE500' }
     ];
 
     for (var i = 0; i < rings.length; i++) {
@@ -321,14 +337,9 @@
     cCtx.stroke();
   }
 
-  // 教練端專用：精準繪製完整的上、中、下三個靶心
   function drawTripleSpotOnCanvasCoach(cCtx) {
-    var centers = [
-      { cx: 100, cy: 46 },  // 上靶心
-      { cx: 100, cy: 140 }, // 中靶心
-      { cx: 100, cy: 234 }  // 下靶心
-    ];
-    var r = 40; // 精準縮放靶心半徑
+    var centers = [{ cx: 100, cy: 46 }, { cx: 100, cy: 140 }, { cx: 100, cy: 234 }];
+    var r = 40;
 
     for (var c = 0; c < centers.length; c++) {
       var cx = centers[c].cx;
@@ -363,26 +374,18 @@
     
     var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
     if (teamData[studentName]) {
-      teamData[studentName].coachViewingEnd = coachViewState[studentName];
-      localStorage.setItem('archery_team_data', JSON.stringify(teamData));
-    }
-    
-    var miniCanvas = document.getElementById('miniTarget_' + index);
-    if (miniCanvas && teamData[studentName]) {
-      drawStudentTarget(miniCanvas, teamData[studentName], coachViewState[studentName]);
+      drawStudentTarget(document.getElementById('miniTarget_' + index), teamData[studentName], coachViewState[studentName]);
     }
   }
 
   function clearTeamData() {
-    if (confirm('確定要清空全隊學生的紀錄嗎？（建議訓練結束後再清空）')) {
+    if (confirm('確定要清空全隊學生的雲端與本地紀錄嗎？')) {
+      if (database) database.ref('students').remove();
       localStorage.removeItem('archery_team_data');
       coachViewState = {};
       document.getElementById('coachDashboard').innerHTML = '';
-      updateDashboardData({});
     }
   }
-
-  updateDashboardData();
 </script>
 
 </body>

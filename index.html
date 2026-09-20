@@ -40,7 +40,6 @@
     }
     .btn-primary { background: #1976d2; color: white; }
     .btn-secondary { background: #e0e0e0; color: #333; }
-    .btn-success { background: #2e7d32; color: white; }
     .btn-export-jpg { background: #e65100; color: white; margin-top: 8px; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; text-align: center; }
@@ -84,6 +83,22 @@
       padding: 12px; margin-top: 12px; font-size: 0.85rem; color: #084298;
     }
     .ai-box h4 { margin: 0 0 6px 0; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; }
+
+    /* iPhone 專用預覽彈窗樣式 */
+    .img-modal {
+      display: none; position: fixed; z-index: 9999; left: 0; top: 0;
+      width: 100%; height: 100%; background-color: rgba(0,0,0,0.85);
+      overflow-y: auto; text-align: center; padding: 20px 10px; box-sizing: border-box;
+    }
+    .img-modal-content {
+      background: white; border-radius: 12px; max-width: 450px; margin: 20px auto;
+      padding: 15px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .img-modal img { width: 100%; height: auto; border-radius: 8px; border: 1px solid #eee; }
+    .close-modal-btn {
+      background: #d32f2f; color: white; border: none; padding: 10px 20px;
+      font-size: 1rem; font-weight: bold; border-radius: 20px; margin-top: 15px; cursor: pointer;
+    }
 
     #minimalExportCard {
       position: absolute; left: -9999px; top: -9999px;
@@ -178,8 +193,21 @@
     </div>
 
     <div style="margin-top: 15px;">
-      <button class="btn-export-jpg" onclick="downloadMinimalJPG()" style="width: 100%;">📸 下載極簡成績與 AI 綜合診斷 (JPG)</button>
+      <button class="btn-export-jpg" id="exportBtn" onclick="downloadMinimalJPG()" style="width: 100%;">📸 生成並下載成績單 (JPG)</button>
     </div>
+  </div>
+</div>
+
+<!-- iPhone 專用圖片儲存彈窗 -->
+<div id="imageModal" class="img-modal">
+  <div class="img-modal-content">
+    <h3 style="margin-top:0; color:#1976d2;">📸 成績單已生成！</h3>
+    <p style="font-size: 0.85rem; color:#d32f2f; font-weight:bold; margin-bottom:10px;">
+      👇 請長按下方圖片，選擇「加入照片」或「儲存影像」：
+    </p>
+    <img id="modalResultImg" src="" alt="成績單">
+    <br>
+    <button class="close-modal-btn" onclick="closeModal()">關閉視窗</button>
   </div>
 </div>
 
@@ -848,7 +876,12 @@
     }
   }
 
+  // 📱 iOS Safari / iPhone 專用預覽彈窗相容機制
   function downloadMinimalJPG() {
+    var btn = document.getElementById('exportBtn');
+    btn.innerText = '⏳ 正在生成成績單中...';
+    btn.disabled = true;
+
     document.getElementById('expTotalScore').innerText = document.getElementById('totalScore').innerText;
     document.getElementById('expArrowCount').innerText = document.getElementById('arrowCount').innerText;
     document.getElementById('expX10Count').innerText = document.getElementById('x10Count').innerText;
@@ -917,29 +950,19 @@
       scale: 2,
       backgroundColor: '#ffffff'
     }).then(function(canvasResult) {
-      var jpgUrl = canvasResult.toDataURL('image/jpeg', 0.92);
-      var rawName = document.getElementById('studentName').value.trim();
-      var studentName = rawName || '學生';
-      var dateStr = new Date().toISOString().slice(0, 10);
-      var distStr = getDistanceString();
-      var fileName = studentName + '_' + dateStr + '_' + distStr + '.jpg';
+      var jpgUrl = canvasResult.toDataURL('image/jpeg', 0.95);
+      
+      // 顯示專屬 Modal 讓 iPhone 使用者長按儲存
+      document.getElementById('modalResultImg').src = jpgUrl;
+      document.getElementById('imageModal').style.display = 'block';
 
-      try {
-        var link = document.createElement('a');
-        link.download = fileName;
-        link.href = jpgUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } catch(e) {
-        var newWin = window.open();
-        if (newWin) {
-          newWin.document.write('<p style="text-align:center;font-size:16px;">長按下方圖片即可儲存成績單：</p><img src="' + jpgUrl + '" style="width:100%;max-width:500px;display:block;margin:0 auto;"/>');
-        } else {
-          alert('請允許開啟快顯視窗以儲存成績圖片！');
-        }
-      }
+      btn.innerText = '📸 生成並下載成績單 (JPG)';
+      btn.disabled = false;
     });
+  }
+
+  function closeModal() {
+    document.getElementById('imageModal').style.display = 'none';
   }
 
   window.addEventListener('beforeunload', function (e) {

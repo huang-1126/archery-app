@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>射箭隊全隊即時監控系統 - 教練端</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --primary: #1976d2;
+      --text: #333333;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0; padding: 15px; background-color: var(--bg-color); color: var(--text);
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      max-width: 1200px; margin: 0 auto 15px auto;
+    }
+    .header h1 { margin: 0; font-size: 1.4rem; color: #1976d2; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card {
+      background: var(--card-bg); border-radius: 12px; padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08); box-sizing: border-box;
+    }
+    .coach-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 15px; width: 100%; margin-top: 15px;
+    }
+    .student-card {
+      background: white; border-radius: 10px; padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid var(--primary);
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .student-info { width: 100%; margin-bottom: 10px; }
+    .student-name { font-size: 1.1rem; font-weight: bold; }
+    .student-score { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+    canvas { border-radius: 8px; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 10px; }
+    .btn-clear {
+      background: #d32f2f; color: white; border: none; padding: 8px 16px;
+      border-radius: 6px; font-weight: bold; cursor: pointer;
+    }
+
+    .arrow-badge {
+      display: inline-block; width: 22px; height: 22px; line-height: 22px;
+      border-radius: 50%; color: white; font-weight: bold; font-size: 0.7rem;
+      text-align: center; margin: 1px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .score-X, .score-10, .score-9 { background: #ffe500; color: #000; }
+    .score-8, .score-7 { background: #ff0000; color: #fff; }
+    .score-6, .score-5 { background: #00bfff; color: #fff; }
+    .score-4, .score-3 { background: #000000; color: #fff; border: 1px solid #444; }
+    .score-2, .score-1 { background: #ffffff; color: #000; border: 1px solid #ccc; }
+    .score-M { background: #888888; color: #fff; }
+
+    .mini-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.8rem; }
+    .mini-table th, .mini-table td { border-bottom: 1px solid #eee; padding: 4px 2px; text-align: center; }
+    .mini-table th { background: #f8f9fa; color: #555; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎯 全隊學生即時落點與每箭分數監控儀表板 (教練專用)</h1>
+  <button class="btn-clear" onclick="clearTeamData()">清空全隊舊成績</button>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h2 style="margin:0; font-size: 1.1rem;">即時監控列表</h2>
+      <span style="font-size: 0.85rem; color: #666;">系統即時更新中...</span>
+    </div>
+    <div class="coach-grid" id="coachDashboard"></div>
+  </div>
+</div>
+
+<script>
+  var coachViewState = {};
+
+  var broadcastChannel = null;
+  try {
+    broadcastChannel = new BroadcastChannel('archery_scoring_channel');
+    broadcastChannel.onmessage = function(event) {
+      if (event.data && event.data.type === 'UPDATE') {
+        updateDashboardData(event.data.data);
+      }
+    };
+  } catch (e) {}
+
+  setInterval(function() {
+    updateDashboardData();
+  }, 1000);
+
+  function updateDashboardData(data) {
+    var teamData = data || JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+    var dashboard = document.getElementById('coachDashboard');
+    if (!dashboard) return;
+    
+    var keys = Object.keys(teamData);
+    if (keys.length === 0) {
+      dashboard.innerHTML = '<p style="color:#777;">目前尚無學生登入記分，請讓學生開啟 student.html 開始測試。</p>';
+      return;
+    }
+
+    var existingCards = dashboard.querySelectorAll('.student-card');
+    if (existingCards.length !== keys.length) {
+      buildDashboardDOM(teamData);
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      var student = teamData[keys[i]];
+      var card = document.getElementById('card_' + i);
+      if (!card) {
+        buildDashboardDOM(teamData);
+        break;
+      }
+
+      document.getElementById('name_' + i).innerText = student.name;
+      document.getElementById('dist_' + i).innerText = '(' + student.distance + ')';
+      document.getElementById('score_' + i).innerText = student.totalScore;
+      document.getElementById('count_' + i).innerText = student.arrowCount;
+      document.getElementById('x10_' + i).innerText = student.x10Count;
+      document.getElementById('time_' + i).innerText = student.lastUpdated;
+
+      var selectEl = document.getElementById('select_' + i);
+      var selectedEnd = coachViewState[student.name] || (selectEl ? selectEl.value : 'all');
+
+      var miniCanvas = document.getElementById('miniTarget_' + i);
+      if (miniCanvas) {
+        drawStudentTarget(miniCanvas, student, selectedEnd);
+      }
+
+      updateStudentScoreTable(i, student);
+    }
+  }
+
+  function buildDashboardDOM(teamData) {
+    var dashboard = document.getElementById('coachDashboard');
+    var keys = Object.keys(teamData);
+    var html = '';
+
+    for (var i = 0; i < keys.length; i++) {
+      var student = teamData[keys[i]];
+      var currentViewingEnd = coachViewState[student.name] || 'all';
+
+      var options = '<option value="all" ' + (currentViewingEnd === 'all' ? 'selected' : '') + '>🎯 全場總落點 (全部箭隻)</option>';
+      for (var e = 1; e <= 6; e++) {
+        options += '<option value="' + e + '" ' + (String(currentViewingEnd) === String(e) ? 'selected' : '') + '>第 ' + e + ' 趟</option>';
+      }
+
+      // 若為三聯靶，高度擴展為 280px，防止第 3 個靶面被切掉
+      var canvasHeight = (student.targetType === 'triple') ? 280 : 200;
+
+      html += '<div class="student-card" id="card_' + i + '">' +
+        '<div class="student-info">' +
+          '<div class="student-name"><span id="name_' + i + '">' + student.name + '</span> <span id="dist_' + i + '" style="font-size: 0.8rem; font-weight: normal; color: #666;">(' + student.distance + ')</span></div>' +
+          '<div style="display: flex; justify-content: space-between; align-items: baseline;">' +
+            '<div class="student-score"><span id="score_' + i + '">' + student.totalScore + '</span> <span style="font-size: 0.8rem; color: #666;">分</span></div>' +
+            '<div style="font-size: 0.85rem; font-weight: bold; color: #555;" id="count_' + i + '">' + student.arrowCount + '</div>' +
+          '</div>' +
+          '<div style="margin-top: 5px;">' +
+            '<label style="font-size: 0.8rem;">觀看靶面趟次：</label>' +
+            '<select id="select_' + i + '" onchange="changeCoachViewEnd(\'' + student.name + '\', this.value, ' + i + ')" style="font-size: 0.8rem; padding: 2px 4px; font-weight: bold;">' + options + '</select>' +
+          '</div>' +
+        '</div>' +
+        '<canvas id="miniTarget_' + i + '" width="200" height="' + canvasHeight + '"></canvas>' +
+        
+        '<div style="width: 100%; max-height: 180px; overflow-y: auto;">' +
+          '<table class="mini-table">' +
+            '<thead>' +
+              '<tr>' +
+                '<th style="width:20%;">趟次</th>' +
+                '<th style="width:65%;">每發箭隻分數</th>' +
+                '<th style="width:15%;">小計</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody id="tableBody_' + i + '"></tbody>' +
+          '</table>' +
+        '</div>' +
+
+        '<div style="font-size: 0.75rem; color: #666; margin-top: 8px; width: 100%; text-align: right;">' +
+          '10分/X環：<strong id="x10_' + i + '">' + student.x10Count + '</strong> | 更新：<span id="time_' + i + '">' + student.lastUpdated + '</span>' +
+        '</div>' +
+      '</div>';
+    }
+    dashboard.innerHTML = html;
+  }
+
+  function updateStudentScoreTable(index, student) {
+    var tbody = document.getElementById('tableBody_' + index);
+    if (!tbody || !student.endsData) return;
+
+    var html = '';
+    for (var e = 0; e < student.endsData.length; e++) {
+      var end = student.endsData[e];
+      var badgesHtml = '';
+      for (var a = 0; a < end.arrows.length; a++) {
+        var scoreVal = end.arrows[a].score;
+        badgesHtml += '<span class="arrow-badge score-' + scoreVal + '">' + scoreVal + '</span>';
+      }
+
+      html += '<tr>' +
+        '<td>第 ' + end.endNum + ' 趟</td>' +
+        '<td>' + (end.arrows.length > 0 ? badgesHtml : '<span style="color:#ccc;">-</span>') + '</td>' +
+        '<td><strong>' + end.score + '</strong></td>' +
+      '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  function drawStudentTarget(canvas, student, selectedEnd) {
+    var mCtx = canvas.getContext('2d');
+
+    mCtx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 依靶面類型分流縮放
+    if (student.targetType === 'single') {
+      var scale = 200 / 360;
+      drawSingleTargetOnCanvas(mCtx, 100, 100, 170 * scale);
+    } else if (student.targetType === 'compound') {
+      var scale = 200 / 360;
+      drawCompoundTargetOnCanvas(mCtx, 100, 100, 170 * scale);
+    } else {
+      // 三聯靶專屬縮放計算，完整展現上中下 3 個靶面
+      drawTripleSpotOnCanvasCoach(mCtx);
+    }
+
+    var viewingEndArrows = [];
+    if (selectedEnd === 'all') {
+      if (student.endsData) {
+        for (var e = 0; e < student.endsData.length; e++) {
+          viewingEndArrows = viewingEndArrows.concat(student.endsData[e].arrows);
+        }
+      }
+    } else {
+      var endIdx = parseInt(selectedEnd) - 1;
+      if (student.endsData && student.endsData[endIdx]) {
+        viewingEndArrows = student.endsData[endIdx].arrows;
+      }
+    }
+
+    for (var aIdx = 0; aIdx < viewingEndArrows.length; aIdx++) {
+      var arrow = viewingEndArrows[aIdx];
+      var drawX, drawY;
+
+      if (student.targetType === 'triple') {
+        // 三聯靶座標對應縮放 (學生端 height=480, width=360 -> 教練端 height=280, width=200)
+        drawX = arrow.x * (200 / 360);
+        drawY = arrow.y * (280 / 480);
+      } else {
+        drawX = arrow.x * (200 / 360);
+        drawY = arrow.y * (200 / 360);
+      }
+
+      mCtx.beginPath();
+      mCtx.arc(drawX, drawY, 4.5, 0, Math.PI * 2);
+      mCtx.fillStyle = (selectedEnd === 'all') ? '#1976d2' : '#2e7d32';
+      mCtx.fill();
+      mCtx.strokeStyle = '#ffffff';
+      mCtx.lineWidth = 1;
+      mCtx.stroke();
+
+      if (selectedEnd !== 'all') {
+        mCtx.fillStyle = '#ffffff';
+        mCtx.font = 'bold 8px sans-serif';
+        mCtx.textAlign = 'center';
+        mCtx.textBaseline = 'middle';
+        mCtx.fillText(aIdx + 1, drawX, drawY);
+      }
+    }
+  }
+
+  function drawSingleTargetOnCanvas(cCtx, cx, cy, r) {
+    var colors = ['#FFFFFF', '#FFFFFF', '#000000', '#000000', '#00BFFF', '#00BFFF', '#FF0000', '#FF0000', '#FFE500', '#FFE500'];
+    for (var i = 10; i >= 1; i--) {
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * (i / 10), 0, Math.PI * 2);
+      cCtx.fillStyle = colors[10 - i];
+      cCtx.fill();
+      cCtx.strokeStyle = (i === 3 || i === 4) ? '#FFFFFF' : '#000000';
+      cCtx.lineWidth = 0.8;
+      cCtx.stroke();
+    }
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, r * 0.05, 0, Math.PI * 2);
+    cCtx.strokeStyle = '#000000';
+    cCtx.stroke();
+  }
+
+  function drawCompoundTargetOnCanvas(cCtx, cx, cy, r) {
+    cCtx.fillStyle = '#f0f0f0';
+    cCtx.fillRect(0, 0, cx * 2, cy * 2);
+
+    var rings = [
+      { ratio: 1.0, color: '#00BFFF' },
+      { ratio: 0.833, color: '#00BFFF' },
+      { ratio: 0.666, color: '#FF0000' },
+      { ratio: 0.5, color: '#FF0000' },
+      { ratio: 0.333, color: '#FFE500' },
+      { ratio: 0.166, color: '#FFE500' }
+    ];
+
+    for (var i = 0; i < rings.length; i++) {
+      var ring = rings[i];
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * ring.ratio, 0, Math.PI * 2);
+      cCtx.fillStyle = ring.color;
+      cCtx.fill();
+      cCtx.strokeStyle = '#000000';
+      cCtx.lineWidth = 0.8;
+      cCtx.stroke();
+    }
+
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, r * 0.083, 0, Math.PI * 2);
+    cCtx.strokeStyle = '#000000';
+    cCtx.lineWidth = 0.8;
+    cCtx.stroke();
+  }
+
+  // 教練端專用：精準繪製完整的上、中、下三個靶心
+  function drawTripleSpotOnCanvasCoach(cCtx) {
+    var centers = [
+      { cx: 100, cy: 46 },  // 上靶心
+      { cx: 100, cy: 140 }, // 中靶心
+      { cx: 100, cy: 234 }  // 下靶心
+    ];
+    var r = 40; // 精準縮放靶心半徑
+
+    for (var c = 0; c < centers.length; c++) {
+      var cx = centers[c].cx;
+      var cy = centers[c].cy;
+
+      var rings = [
+        { ratio: 1.0, color: '#00BFFF' }, { ratio: 0.8, color: '#FF0000' },
+        { ratio: 0.6, color: '#FF0000' }, { ratio: 0.4, color: '#FFE500' },
+        { ratio: 0.2, color: '#FFE500' }
+      ];
+
+      for (var i = 0; i < rings.length; i++) {
+        var ring = rings[i];
+        cCtx.beginPath();
+        cCtx.arc(cx, cy, r * ring.ratio, 0, Math.PI * 2);
+        cCtx.fillStyle = ring.color;
+        cCtx.fill();
+        cCtx.strokeStyle = '#000000';
+        cCtx.lineWidth = 0.8;
+        cCtx.stroke();
+      }
+
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * 0.1, 0, Math.PI * 2);
+      cCtx.strokeStyle = '#000000';
+      cCtx.stroke();
+    }
+  }
+
+  function changeCoachViewEnd(studentName, value, index) {
+    coachViewState[studentName] = (value === 'all') ? 'all' : parseInt(value);
+    
+    var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+    if (teamData[studentName]) {
+      teamData[studentName].coachViewingEnd = coachViewState[studentName];
+      localStorage.setItem('archery_team_data', JSON.stringify(teamData));
+    }
+    
+    var miniCanvas = document.getElementById('miniTarget_' + index);
+    if (miniCanvas && teamData[studentName]) {
+      drawStudentTarget(miniCanvas, teamData[studentName], coachViewState[studentName]);
+    }
+  }
+
+  function clearTeamData() {
+    if (confirm('確定要清空全隊學生的紀錄嗎？（建議訓練結束後再清空）')) {
+      localStorage.removeItem('archery_team_data');
+      coachViewState = {};
+      document.getElementById('coachDashboard').innerHTML = '';
+      updateDashboardData({});
+    }
+  }
+
+  updateDashboardData();
+</script>
+
+</body>
+</html>

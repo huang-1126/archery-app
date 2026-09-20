@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>射箭隊訓練計分系統 - 學生端</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --primary: #1976d2;
+      --text: #333333;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0; padding: 15px; background-color: var(--bg-color); color: var(--text);
+    }
+    .header { max-width: 1100px; margin: 0 auto 15px auto; text-align: center; }
+    .header h1 { margin: 0; font-size: 1.4rem; color: var(--primary); }
+    .container { display: flex; flex-wrap: wrap; gap: 15px; max-width: 1100px; margin: 0 auto; }
+    .card {
+      background: var(--card-bg); border-radius: 12px; padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08); flex: 1; min-width: 300px; box-sizing: border-box;
+    }
+    .target-container { display: flex; flex-direction: column; align-items: center; }
+    canvas {
+      border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      cursor: crosshair; touch-action: none; background: #ffffff; display: block; margin: 0 auto;
+    }
+    .controls { display: flex; gap: 10px; margin-top: 15px; width: 100%; }
+    button {
+      flex: 1; padding: 10px; border: none; border-radius: 6px;
+      font-size: 0.95rem; font-weight: bold; cursor: pointer;
+    }
+    .btn-primary { background: #1976d2; color: white; }
+    .btn-secondary { background: #e0e0e0; color: #333; }
+    .btn-success { background: #2e7d32; color: white; }
+    .btn-export-jpg { background: #e65100; color: white; margin-top: 8px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; text-align: center; }
+    .stat-box { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #e9ecef; }
+    .stat-value { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
+    .stat-label { font-size: 0.75rem; color: #666; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: center; }
+    th { background: #f8f9fa; }
+    tr.active-end { background-color: #e3f2fd; font-weight: bold; }
+
+    .arrow-badge {
+      display: inline-block; width: 24px; height: 24px; line-height: 24px;
+      border-radius: 50%; color: white; font-weight: bold; font-size: 0.75rem;
+      text-align: center; margin: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .score-X, .score-10, .score-9 { background: #ffe500; color: #000; }
+    .score-8, .score-7 { background: #ff0000; color: #fff; }
+    .score-6, .score-5 { background: #00bfff; color: #fff; }
+    .score-4, .score-3 { background: #000000; color: #fff; border: 1px solid #444; }
+    .score-2, .score-1 { background: #ffffff; color: #000; border: 1px solid #ccc; }
+    .score-M { background: #888888; color: #fff; }
+
+    .meta-inputs { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr; gap: 8px; margin-bottom: 15px; width: 100%; }
+    .meta-inputs select, .meta-inputs input {
+      padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.85rem; width: 100%; box-sizing: border-box;
+    }
+
+    .distance-input-wrapper {
+      display: flex;
+      align-items: center;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      padding-right: 8px;
+    }
+    .distance-input-wrapper input {
+      border: none !important;
+      outline: none;
+      padding: 8px 4px 8px 8px;
+    }
+    .distance-unit {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #555;
+      user-select: none;
+    }
+
+    .ai-box {
+      background: #eef6ff; border: 1px solid #b6d4fe; border-radius: 8px;
+      padding: 12px; margin-top: 12px; font-size: 0.85rem; color: #084298;
+    }
+    .ai-box h4 { margin: 0 0 6px 0; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; }
+
+    #minimalExportCard {
+      position: absolute; left: -9999px; top: -9999px;
+      width: 420px; background: #ffffff; padding: 20px; border-radius: 12px;
+      box-sizing: border-box; text-align: center; font-family: -apple-system, sans-serif;
+      color: #333;
+    }
+    .mini-stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;
+    }
+    .mini-stat-box {
+      background: #f4f6f8; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;
+    }
+    .mini-stat-val { font-size: 1.4rem; font-weight: bold; color: #1976d2; }
+    .mini-stat-lbl { font-size: 0.75rem; color: #666; margin-top: 2px; }
+    
+    .exp-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem; }
+    .exp-table th, .exp-table td { border-bottom: 1px solid #eee; padding: 6px 4px; text-align: center; }
+    .exp-table th { background: #f8f9fa; color: #555; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏹 個人靶位記分板</h1>
+</div>
+
+<div class="container">
+  <div class="card target-container">
+    <div class="meta-inputs">
+      <input type="text" id="studentName" placeholder="請輸入姓名" value="" onchange="syncToCloud()">
+      
+      <div class="distance-input-wrapper">
+        <input type="number" id="distanceNum" placeholder="距離" value="18" min="1" max="100" onchange="syncToCloud()">
+        <span class="distance-unit">m</span>
+      </div>
+
+      <select id="targetType" onchange="switchTargetType()">
+        <option value="triple" selected>室內賽三聯靶 (3箭×10趟/300分)</option>
+        <option value="single">單靶 (10環/360分)</option>
+        <option value="compound">複合弓六環靶 (5-10環/360分)</option>
+      </select>
+    </div>
+
+    <canvas id="targetCanvas" width="360" height="480"></canvas>
+
+    <div class="controls">
+      <button class="btn-secondary" onclick="undoArrow()">撤銷最後一箭</button>
+      <button class="btn-primary" onclick="resetAll()">重新開始測驗</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value" id="totalScore">0</div>
+        <div class="stat-label">當前總分</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="arrowCount">0 / 30</div>
+        <div class="stat-label">總箭數</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="x10Count">0 / 0</div>
+        <div class="stat-label">10分 / X分</div>
+      </div>
+    </div>
+
+    <h3>檢視/修改趟次：
+      <select id="editingEndSelect" onchange="selectEndToView()" style="font-size: 0.95rem; padding: 4px 8px;">
+      </select>
+    </h3>
+    <p style="font-size: 0.8rem; color: #d32f2f; font-weight: bold; margin-top: -5px;">
+      💡 提示：按住靶面上箭號中心可<b>拖曳修改落點</b>
+    </p>
+
+    <div id="currentEndArrows" style="min-height: 35px; margin-bottom: 10px;">
+      <em>點擊靶面開始記分...</em>
+    </div>
+
+    <div class="ai-box">
+      <h4 id="aiTitle">🤖 AI 當趟技術提醒</h4>
+      <div id="aiAdviceText">本趟尚未發箭，點擊靶面記錄落點將顯示即時技術提醒...</div>
+    </div>
+
+    <h3>歷史趟次列表</h3>
+    <div style="max-height: 180px; overflow-y: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>趟次</th>
+            <th>得分落點</th>
+            <th>小計</th>
+          </tr>
+        </thead>
+        <tbody id="historyTable"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 15px;">
+      <button class="btn-export-jpg" onclick="downloadMinimalJPG()" style="width: 100%;">📸 下載極簡成績與 AI 綜合診斷 (JPG)</button>
+    </div>
+  </div>
+</div>
+
+<div id="minimalExportCard">
+  <div class="mini-stats-grid">
+    <div class="mini-stat-box">
+      <div class="mini-stat-val" id="expTotalScore">0</div>
+      <div class="mini-stat-lbl">總得分</div>
+    </div>
+    <div class="mini-stat-box">
+      <div class="mini-stat-val" id="expArrowCount">0 / 30</div>
+      <div class="mini-stat-lbl">總箭數</div>
+    </div>
+    <div class="mini-stat-box">
+      <div class="mini-stat-val" id="expX10Count">0 / 0</div>
+      <div class="mini-stat-lbl">10分 / X分</div>
+    </div>
+  </div>
+
+  <canvas id="exportCanvas" width="360" height="480" style="margin: 0 auto; display: block; border-radius: 8px;"></canvas>
+
+  <div id="expAiAdvice" style="margin-top: 10px; font-size: 0.8rem; color: #1976d2; font-weight: bold; text-align: left; background: #eef6ff; padding: 8px; border-radius: 6px;">
+  </div>
+
+  <table class="exp-table">
+    <thead>
+      <tr>
+        <th style="width: 20%;">趟次</th>
+        <th style="width: 65%;">箭隻落點分數</th>
+        <th style="width: 15%;">小計</th>
+      </tr>
+    </thead>
+    <tbody id="expHistoryTable"></tbody>
+  </table>
+</div>
+
+<script>
+  var targetType = 'triple';
+  var currentEnd = 1;
+  var activeViewingEnd = 1;
+  var maxEnds = 10;
+  var arrowsPerEnd = 3;
+  var endsData = [];
+  var isFinished = false;
+  var draggingArrowIdx = -1;
+
+  // 10 趟專用顏色庫 (清晰區分趟次)
+  var endColors = [
+    '#1976D2', '#D32F2F', '#388E3C', '#F57C00', '#7B1FA2',
+    '#0097A7', '#E64A19', '#5D4037', '#455A64', '#C2185B'
+  ];
+
+  var broadcastChannel = null;
+  try { broadcastChannel = new BroadcastChannel('archery_scoring_channel'); } catch (e) {}
+
+  var canvas = document.getElementById('targetCanvas');
+  var ctx = canvas.getContext('2d');
+
+  function initEndsData() {
+    if (targetType === 'triple') {
+      maxEnds = 10;
+      arrowsPerEnd = 3;
+    } else {
+      maxEnds = 6;
+      arrowsPerEnd = 6;
+    }
+    endsData = [];
+    for (var i = 1; i <= maxEnds; i++) {
+      endsData.push({ endNum: i, arrows: [], score: 0 });
+    }
+  }
+
+  function switchTargetType() {
+    targetType = document.getElementById('targetType').value;
+    canvas.width = 360;
+    canvas.height = (targetType === 'single' || targetType === 'compound') ? 360 : 480;
+    
+    currentEnd = 1;
+    activeViewingEnd = 1;
+    isFinished = false;
+    initEndsData();
+
+    drawTarget();
+    updateUI();
+    syncToCloud();
+  }
+
+  function drawTarget() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (targetType === 'single') {
+      drawSingleTargetOnCanvas(ctx, 180, 180, 170);
+    } else if (targetType === 'compound') {
+      drawCompoundTargetOnCanvas(ctx, 180, 180, 170);
+    } else {
+      var r = 70;
+      drawTripleSpotOnCanvas(ctx, 180, 80, r);
+      drawTripleSpotOnCanvas(ctx, 180, 240, r);
+      drawTripleSpotOnCanvas(ctx, 180, 400, r);
+    }
+
+    var viewingArrows = endsData[activeViewingEnd - 1].arrows;
+    for (var i = 0; i < viewingArrows.length; i++) {
+      var arrow = viewingArrows[i];
+      ctx.beginPath();
+      ctx.arc(arrow.x, arrow.y, (draggingArrowIdx === i) ? 12 : 8, 0, Math.PI * 2);
+      ctx.fillStyle = (draggingArrowIdx === i) ? '#ff9800' : '#2e7d32';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i + 1, arrow.x, arrow.y);
+    }
+  }
+
+  function drawSingleTargetOnCanvas(cCtx, cx, cy, r) {
+    var colors = ['#FFFFFF', '#FFFFFF', '#000000', '#000000', '#00BFFF', '#00BFFF', '#FF0000', '#FF0000', '#FFE500', '#FFE500'];
+    for (var i = 10; i >= 1; i--) {
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * (i / 10), 0, Math.PI * 2);
+      cCtx.fillStyle = colors[10 - i];
+      cCtx.fill();
+      cCtx.strokeStyle = (i === 3 || i === 4) ? '#FFFFFF' : '#000000';
+      cCtx.lineWidth = 0.8;
+      cCtx.stroke();
+    }
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, r * 0.05, 0, Math.PI * 2);
+    cCtx.strokeStyle = '#000000';
+    cCtx.stroke();
+  }
+
+  function drawCompoundTargetOnCanvas(cCtx, cx, cy, r) {
+    cCtx.fillStyle = '#f0f0f0';
+    cCtx.fillRect(0, 0, cx * 2, cy * 2);
+
+    var rings = [
+      { ratio: 1.0, color: '#00BFFF' },
+      { ratio: 0.833, color: '#00BFFF' },
+      { ratio: 0.666, color: '#FF0000' },
+      { ratio: 0.5, color: '#FF0000' },
+      { ratio: 0.333, color: '#FFE500' },
+      { ratio: 0.166, color: '#FFE500' }
+    ];
+
+    for (var i = 0; i < rings.length; i++) {
+      var ring = rings[i];
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * ring.ratio, 0, Math.PI * 2);
+      cCtx.fillStyle = ring.color;
+      cCtx.fill();
+      cCtx.strokeStyle = '#000000';
+      cCtx.lineWidth = 0.8;
+      cCtx.stroke();
+    }
+
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, r * 0.083, 0, Math.PI * 2);
+    cCtx.strokeStyle = '#000000';
+    cCtx.lineWidth = 0.8;
+    cCtx.stroke();
+  }
+
+  function drawTripleSpotOnCanvas(cCtx, cx, cy, r) {
+    var rings = [
+      { ratio: 1.0, color: '#00BFFF' }, { ratio: 0.8, color: '#FF0000' },
+      { ratio: 0.6, color: '#FF0000' }, { ratio: 0.4, color: '#FFE500' },
+      { ratio: 0.2, color: '#FFE500' }
+    ];
+    for (var i = 0; i < rings.length; i++) {
+      var ring = rings[i];
+      cCtx.beginPath();
+      cCtx.arc(cx, cy, r * ring.ratio, 0, Math.PI * 2);
+      cCtx.fillStyle = ring.color;
+      cCtx.fill();
+      cCtx.strokeStyle = '#000000';
+      cCtx.lineWidth = 0.8;
+      cCtx.stroke();
+    }
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, r * 0.1, 0, Math.PI * 2);
+    cCtx.strokeStyle = '#000000';
+    cCtx.stroke();
+  }
+
+  function calculateScoreFromCoords(x, y) {
+    var score = 'M', isX = false;
+    if (targetType === 'single') {
+      var cx = 180, cy = 180, r = 170;
+      var ratio = Math.hypot(x - cx, y - cy) / r;
+      if (ratio <= 0.05) { score = 'X'; isX = true; }
+      else if (ratio <= 0.1) { score = 10; }
+      else if (ratio <= 0.2) { score = 9; }
+      else if (ratio <= 0.3) { score = 8; }
+      else if (ratio <= 0.4) { score = 7; }
+      else if (ratio <= 0.5) { score = 6; }
+      else if (ratio <= 0.6) { score = 5; }
+      else if (ratio <= 0.7) { score = 4; }
+      else if (ratio <= 0.8) { score = 3; }
+      else if (ratio <= 0.9) { score = 2; }
+      else if (ratio <= 1.0) { score = 1; }
+    } else if (targetType === 'compound') {
+      var cx = 180, cy = 180, r = 170;
+      var ratio = Math.hypot(x - cx, y - cy) / r;
+      if (ratio <= 0.083) { score = 'X'; isX = true; }
+      else if (ratio <= 0.166) { score = 10; }
+      else if (ratio <= 0.333) { score = 9; }
+      else if (ratio <= 0.5) { score = 8; }
+      else if (ratio <= 0.666) { score = 7; }
+      else if (ratio <= 0.833) { score = 6; }
+      else if (ratio <= 1.0) { score = 5; }
+    } else {
+      var centers = [{ cx: 180, cy: 80 }, { cx: 180, cy: 240 }, { cx: 180, cy: 400 }];
+      var r = 70;
+      for (var i = 0; i < centers.length; i++) {
+        var c = centers[i];
+        var ratio = Math.hypot(x - c.cx, y - c.cy) / r;
+        if (ratio <= 1.0) {
+          if (ratio <= 0.1) { score = 'X'; isX = true; }
+          else if (ratio <= 0.2) { score = 10; }
+          else if (ratio <= 0.4) { score = 9; }
+          else if (ratio <= 0.6) { score = 8; }
+          else if (ratio <= 0.8) { score = 7; }
+          else if (ratio <= 1.0) { score = 6; }
+          break;
+        }
+      }
+    }
+    return { score: score, isX: isX };
+  }
+
+  // 🎯 計算箭隻相對於自身靶心的偏差向量 (dx, dy)
+  function getArrowOffset(x, y) {
+    if (targetType === 'triple') {
+      var centers = [{ cx: 180, cy: 80 }, { cx: 180, cy: 240 }, { cx: 180, cy: 400 }];
+      // 找出最近的靶心
+      var closestCenter = centers[0];
+      var minD = Math.hypot(x - centers[0].cx, y - centers[0].cy);
+      for (var i = 1; i < centers.length; i++) {
+        var d = Math.hypot(x - centers[i].cx, y - centers[i].cy);
+        if (d < minD) {
+          minD = d;
+          closestCenter = centers[i];
+        }
+      }
+      return { dx: x - closestCenter.cx, dy: y - closestCenter.cy };
+    } else {
+      var cx = 180, cy = 180;
+      return { dx: x - cx, dy: y - cy };
+    }
+  }
+
+  function getCanvasCoords(e) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+    var clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function checkAndUpdateFinishedState() {
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + end.arrows.length; }, 0);
+    var maxArrows = maxEnds * arrowsPerEnd;
+    
+    if (totalArrowsCount < maxArrows) {
+      isFinished = false;
+      for (var i = 0; i < endsData.length; i++) {
+        if (endsData[i].arrows.length < arrowsPerEnd) {
+          currentEnd = i + 1;
+          break;
+        }
+      }
+    } else {
+      isFinished = true;
+      currentEnd = maxEnds;
+    }
+  }
+
+  canvas.addEventListener('pointerdown', function(e) {
+    var pos = getCanvasCoords(e);
+    var currentTargetArrows = endsData[activeViewingEnd - 1].arrows;
+    
+    var clickedIdx = -1;
+    for (var i = currentTargetArrows.length - 1; i >= 0; i--) {
+      if (Math.hypot(currentTargetArrows[i].x - pos.x, currentTargetArrows[i].y - pos.y) <= 10) {
+        clickedIdx = i;
+        break;
+      }
+    }
+
+    if (clickedIdx !== -1) {
+      draggingArrowIdx = clickedIdx;
+      canvas.setPointerCapture(e.pointerId);
+      drawTarget();
+    } else {
+      checkAndUpdateFinishedState();
+
+      if (activeViewingEnd !== currentEnd || isFinished) {
+        alert('您正在檢視第 ' + activeViewingEnd + ' 趟。若要新增發箭，請切換至第 ' + currentEnd + ' 趟。');
+        return;
+      }
+
+      if (currentTargetArrows.length >= arrowsPerEnd) return;
+
+      var result = calculateScoreFromCoords(pos.x, pos.y);
+      currentTargetArrows.push({ x: pos.x, y: pos.y, score: result.score, isX: result.isX });
+      recalcEndScore(activeViewingEnd - 1);
+
+      if (currentTargetArrows.length === arrowsPerEnd) {
+        setTimeout(function() { autoCompleteCurrentEnd(); }, 300);
+      } else {
+        drawTarget();
+        updateUI();
+        syncToCloud();
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', function(e) {
+    if (draggingArrowIdx !== -1) {
+      var pos = getCanvasCoords(e);
+      var currentTargetArrows = endsData[activeViewingEnd - 1].arrows;
+      currentTargetArrows[draggingArrowIdx].x = pos.x;
+      currentTargetArrows[draggingArrowIdx].y = pos.y;
+
+      var result = calculateScoreFromCoords(pos.x, pos.y);
+      currentTargetArrows[draggingArrowIdx].score = result.score;
+      currentTargetArrows[draggingArrowIdx].isX = result.isX;
+
+      recalcEndScore(activeViewingEnd - 1);
+      drawTarget();
+      updateUI();
+      syncToCloud();
+    }
+  });
+
+  canvas.addEventListener('pointerup', function(e) {
+    if (draggingArrowIdx !== -1) {
+      draggingArrowIdx = -1;
+      drawTarget();
+      updateUI();
+      syncToCloud();
+    }
+  });
+
+  function recalcEndScore(endIdx) {
+    var end = endsData[endIdx];
+    var sum = 0;
+    for (var i = 0; i < end.arrows.length; i++) {
+      var a = end.arrows[i];
+      if (typeof a.score === 'number') sum += a.score;
+      else if (a.score === 'X') sum += 10;
+    }
+    end.score = sum;
+  }
+
+  function autoCompleteCurrentEnd() {
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + end.arrows.length; }, 0);
+    var maxArrows = maxEnds * arrowsPerEnd;
+
+    if (totalArrowsCount >= maxArrows) {
+      isFinished = true;
+      drawTarget();
+      updateUI();
+      syncToCloud();
+      alert('🎉 恭喜完成全場測驗（共 ' + maxArrows + ' 箭）！已生成全場總體評語。');
+    } else {
+      if (currentEnd < maxEnds) {
+        currentEnd++;
+        activeViewingEnd = currentEnd;
+      }
+      drawTarget();
+      updateUI();
+      syncToCloud();
+    }
+  }
+
+  function selectEndToView() {
+    var val = document.getElementById('editingEndSelect').value;
+    activeViewingEnd = parseInt(val);
+    drawTarget();
+    updateUI();
+  }
+
+  function selectHistoricalEnd(endNum) {
+    activeViewingEnd = endNum;
+    drawTarget();
+    updateUI();
+  }
+
+  function undoArrow() {
+    var currentTargetArrows = endsData[activeViewingEnd - 1].arrows;
+    if (currentTargetArrows.length > 0) {
+      currentTargetArrows.pop();
+      recalcEndScore(activeViewingEnd - 1);
+      checkAndUpdateFinishedState();
+      drawTarget();
+      updateUI();
+      syncToCloud();
+    }
+  }
+
+  function resetAll() {
+    if (confirm('確定要清空所有成績重新開始嗎？')) {
+      currentEnd = 1;
+      activeViewingEnd = 1;
+      isFinished = false;
+      initEndsData();
+      drawTarget();
+      updateUI();
+      syncToCloud();
+    }
+  }
+
+  // 🎯 重構 AI 當趟技術提醒（歸一化相對偏差）
+  function analyzeCurrentEnd(endIdx) {
+    var arrows = endsData[endIdx].arrows;
+    if (arrows.length === 0) {
+      return "本趟尚未發箭，點擊靶面記錄落點將顯示即時技術提醒...";
+    }
+
+    var sumDx = 0, sumDy = 0, endScore = 0, lowCount = 0;
+    for (var i = 0; i < arrows.length; i++) {
+      var offset = getArrowOffset(arrows[i].x, arrows[i].y);
+      sumDx += offset.dx;
+      sumDy += offset.dy;
+
+      if (typeof arrows[i].score === 'number') {
+        endScore += arrows[i].score;
+        if (arrows[i].score <= 8) lowCount++;
+      } else if (arrows[i].score === 'X') {
+        endScore += 10;
+      } else {
+        lowCount++;
+      }
+    }
+
+    var avgDx = sumDx / arrows.length;
+    var avgDy = sumDy / arrows.length;
+
+    // 計算箭隻相對於相對重心的離散半徑
+    var totalDistance = 0;
+    for (var i = 0; i < arrows.length; i++) {
+      var offset = getArrowOffset(arrows[i].x, arrows[i].y);
+      totalDistance += Math.hypot(offset.dx - avgDx, offset.dy - avgDy);
+    }
+    var avgSpreadRadius = totalDistance / arrows.length;
+
+    var threshold = 10;
+    var horiz = avgDx > threshold ? "右" : (avgDx < -threshold ? "左" : "");
+    var vert = avgDy > threshold ? "下" : (avgDy < -threshold ? "上" : "");
+    var posName = (vert || horiz) ? (vert + horiz) : "正中心";
+
+    var msg = "🎯 <b>第 " + (endIdx + 1) + " 趟即時提醒 (小計 " + endScore + " 分)：</b><br>";
+
+    if (avgSpreadRadius > 35) {
+      msg += "⚠️ <b>落點過於分散：</b>本趟箭隻分數較低且分佈較廣。雖然平均落點接近「" + posName + "」，但離散度高，代表發力動作（如鉤弦靠弦點、放箭節奏）不一致，請統一瞄準時間。";
+    } else if (posName === "正中心" && lowCount === 0) {
+      msg += "✨ <b>穩定高分：</b>本趟發力與節奏非常優秀！箭隻緊密集中於黃心，請保持目前的發放氣息。";
+    } else {
+      msg += "📌 箭群整體偏向「" + posName + "」。";
+      if (vert === "上" && horiz === "右") msg += "請注意下一趟後背肌群勿過度拉扯，放箭時右手肘避免抬高。";
+      else if (vert === "上" && horiz === "左") msg += "請注意推弓手勿過度撐推，頭部保持穩定勿提早抬起。";
+      else if (vert === "下" && horiz === "右") msg += "注意放箭瞬間推弓手手臂下沉Drop，維持胸腔氣息穩定。";
+      else if (vert === "下" && horiz === "左") msg += "注意鉤弦手放箭時勿鬆弦洩力，維持靠弦點緊貼。";
+      else if (horiz === "左") msg += "請檢查推弓手虎口受力點是否偏左，或鉤弦手靠弦過緊。";
+      else if (horiz === "右") msg += "請檢查鉤弦手靠弦點是否離臉，或放箭扣擊不順暢。";
+      else if (vert === "上") msg += "請注意靠弦點是否偏低，或下巴微微抬高。";
+      else if (vert === "下") msg += "請注意推弓手臂避免下沉，縮短瞄準停留時間。";
+    }
+    return msg;
+  }
+
+  // 🏆 重構 AI 全場測驗總評語（歸一化相對偏差）
+  function analyzeFullMatch() {
+    var allArrows = [];
+    var totalScore = 0;
+    var lowScoreCount = 0;
+
+    for (var e = 0; e < endsData.length; e++) {
+      var end = endsData[e];
+      for (var a = 0; a < end.arrows.length; a++) {
+        var arrow = end.arrows[a];
+        allArrows.push(arrow);
+        if (typeof arrow.score === 'number') {
+          totalScore += arrow.score;
+          if (arrow.score <= 8) lowScoreCount++;
+        } else if (arrow.score === 'X') {
+          totalScore += 10;
+        } else {
+          lowScoreCount++;
+        }
+      }
+    }
+
+    if (allArrows.length === 0) return "尚無評語";
+
+    var avgScorePerArrow = (totalScore / allArrows.length).toFixed(1);
+    var sumDx = 0, sumDy = 0;
+    for (var i = 0; i < allArrows.length; i++) {
+      var offset = getArrowOffset(allArrows[i].x, allArrows[i].y);
+      sumDx += offset.dx;
+      sumDy += offset.dy;
+    }
+    var avgDx = sumDx / allArrows.length;
+    var avgDy = sumDy / allArrows.length;
+
+    var totalDistance = 0;
+    for (var i = 0; i < allArrows.length; i++) {
+      var offset = getArrowOffset(allArrows[i].x, allArrows[i].y);
+      totalDistance += Math.hypot(offset.dx - avgDx, offset.dy - avgDy);
+    }
+    var avgSpreadRadius = totalDistance / allArrows.length;
+
+    var threshold = 10;
+    var horiz = avgDx > threshold ? "右" : (avgDx < -threshold ? "左" : "");
+    var vert = avgDy > threshold ? "下" : (avgDy < -threshold ? "上" : "");
+    var posName = (vert || horiz) ? (vert + horiz) : "正中心";
+
+    var analysis = "🏆 <b>【全場 " + (maxEnds * arrowsPerEnd) + " 箭 測驗總評語】</b><br>";
+    analysis += "📊 <b>平均箭分：</b>" + avgScorePerArrow + " 分 | <b>整體相對重心：</b>偏「" + posName + "」<br>";
+
+    if (avgSpreadRadius > 38 || lowScoreCount > (maxEnds * 0.8)) {
+      analysis += "⚠️ <b>散佈較大警告：</b>全場發箭離散度較高（出現多發低分離散箭）。雖然相對平均座標落在「" + posName + "」，但動作Consistency（一致性）尚有提升空間，建議加強後背持續發力與穩定的瞄準節奏。";
+    } else if (avgScorePerArrow >= 9.2 && lowScoreCount === 0) {
+      if (posName === "正中心") {
+        analysis += "🎯 <b>全場表現完美：</b>落點高度集中且均為高分！動作一致性極佳，發放節奏穩定。";
+      } else {
+        analysis += "💡 <b>高分群技術總評：</b>全場動作極為穩定（皆為9-10分），總落點偏「" + posName + "」純屬瞄準器微調，建議將瞄準器向「" + posName + "」側微調 1-2 刻度即可。";
+      }
+    } else {
+      analysis += "📝 <b>全場技術優化：</b>整體密集度尚可，落點偏「" + posName + "」。建議訓練時特別注意體力下降時推弓手臂的支撐度。";
+    }
+
+    return analysis;
+  }
+
+  function updateUI() {
+    checkAndUpdateFinishedState();
+
+    var select = document.getElementById('editingEndSelect');
+    if (select) {
+      var html = '';
+      for (var i = 0; i < maxEnds; i++) {
+        var num = i + 1;
+        var label = '第 ' + num + ' 趟 (' + endsData[i].arrows.length + '/' + arrowsPerEnd + ' 箭)';
+        if (num === currentEnd && !isFinished) label += ' [進行中]';
+        html += '<option value="' + num + '" ' + (num === activeViewingEnd ? 'selected' : '') + '>' + label + '</option>';
+      }
+      select.innerHTML = html;
+    }
+
+    var currentContainer = document.getElementById('currentEndArrows');
+    var viewingArrows = endsData[activeViewingEnd - 1].arrows;
+    
+    if (currentContainer) {
+      if (viewingArrows.length === 0) {
+        currentContainer.innerHTML = '<em>本趟暫無箭落點，點擊靶面開始記分...</em>';
+      } else {
+        var badgeHtml = '';
+        for (var i = 0; i < viewingArrows.length; i++) {
+          badgeHtml += '<span class="arrow-badge score-' + viewingArrows[i].score + '">' + viewingArrows[i].score + '</span>';
+        }
+        currentContainer.innerHTML = badgeHtml;
+      }
+    }
+
+    var totalScore = 0, totalArrows = 0, count10 = 0, countX = 0;
+    for (var e = 0; e < endsData.length; e++) {
+      var end = endsData[e];
+      for (var a = 0; a < end.arrows.length; a++) {
+        var arrow = end.arrows[a];
+        totalArrows++;
+        if (arrow.score === 'X') { totalScore += 10; countX++; count10++; }
+        else if (arrow.score === 10) { totalScore += 10; count10++; }
+        else if (typeof arrow.score === 'number') { totalScore += arrow.score; }
+      }
+    }
+
+    var maxArrows = maxEnds * arrowsPerEnd;
+
+    document.getElementById('totalScore').innerText = totalScore;
+    document.getElementById('arrowCount').innerText = totalArrows + ' / ' + maxArrows;
+    document.getElementById('x10Count').innerText = count10 + ' / ' + countX;
+
+    if (isFinished || totalArrows >= maxArrows) {
+      document.getElementById('aiTitle').innerHTML = "🏆 全場測驗 AI 總體評語";
+      document.getElementById('aiAdviceText').innerHTML = analyzeFullMatch();
+    } else {
+      document.getElementById('aiTitle').innerHTML = "🤖 第 " + activeViewingEnd + " 趟 AI 即時提醒";
+      document.getElementById('aiAdviceText').innerHTML = analyzeCurrentEnd(activeViewingEnd - 1);
+    }
+
+    var historyTable = document.getElementById('historyTable');
+    if (historyTable) {
+      var tableHtml = '';
+      for (var i = 0; i < endsData.length; i++) {
+        var e = endsData[i];
+        var badges = '';
+        for (var j = 0; j < e.arrows.length; j++) {
+          badges += '<span class="arrow-badge score-' + e.arrows[j].score + '">' + e.arrows[j].score + '</span>';
+        }
+        tableHtml += '<tr class="' + (e.endNum === activeViewingEnd ? 'active-end' : '') + '" onclick="selectHistoricalEnd(' + e.endNum + ')" style="cursor: pointer;">' +
+          '<td>第 ' + e.endNum + ' 趟</td>' +
+          '<td>' + (e.arrows.length > 0 ? badges : '<span style="color:#aaa;">未發箭</span>') + '</td>' +
+          '<td><strong>' + e.score + '</strong></td>' +
+        '</tr>';
+      }
+      historyTable.innerHTML = tableHtml;
+    }
+  }
+
+  function getDistanceString() {
+    var num = document.getElementById('distanceNum').value || '18';
+    return num + 'm';
+  }
+
+  function syncToCloud() {
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + end.arrows.length; }, 0);
+    var maxArrows = maxEnds * arrowsPerEnd;
+    
+    var currentAdvice = (isFinished || totalArrowsCount >= maxArrows) ? analyzeFullMatch() : analyzeCurrentEnd(activeViewingEnd - 1);
+
+    var studentData = {
+      name: document.getElementById('studentName').value || '未具名學生',
+      distance: getDistanceString(),
+      targetType: targetType,
+      totalScore: document.getElementById('totalScore').innerText,
+      arrowCount: document.getElementById('arrowCount').innerText,
+      x10Count: document.getElementById('x10Count').innerText,
+      currentEnd: isFinished ? '已完成' : currentEnd,
+      activeViewingEnd: activeViewingEnd,
+      endsData: endsData,
+      aiAdvice: currentAdvice,
+      lastUpdated: new Date().toLocaleTimeString()
+    };
+
+    var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+    teamData[studentData.name] = studentData;
+    localStorage.setItem('archery_team_data', JSON.stringify(teamData));
+
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ type: 'UPDATE', data: teamData });
+    }
+  }
+
+  // 📸 匯出 JPG：包含彩色趟次數字與對應表格標籤
+  function downloadMinimalJPG() {
+    document.getElementById('expTotalScore').innerText = document.getElementById('totalScore').innerText;
+    document.getElementById('expArrowCount').innerText = document.getElementById('arrowCount').innerText;
+    document.getElementById('expX10Count').innerText = document.getElementById('x10Count').innerText;
+
+    var expCanvas = document.getElementById('exportCanvas');
+    expCanvas.width = 360;
+    expCanvas.height = (targetType === 'single' || targetType === 'compound') ? 360 : 480;
+    var eCtx = expCanvas.getContext('2d');
+    eCtx.clearRect(0, 0, expCanvas.width, expCanvas.height);
+
+    if (targetType === 'single') {
+      drawSingleTargetOnCanvas(eCtx, 180, 180, 170);
+    } else if (targetType === 'compound') {
+      drawCompoundTargetOnCanvas(eCtx, 180, 180, 170);
+    } else {
+      drawTripleSpotOnCanvas(eCtx, 180, 80, 70);
+      drawTripleSpotOnCanvas(eCtx, 180, 240, 70);
+      drawTripleSpotOnCanvas(eCtx, 180, 400, 70);
+    }
+
+    // 繪製全場所有趟次箭隻（帶趟次數字與彩色外框）
+    for (var e = 0; e < endsData.length; e++) {
+      var end = endsData[e];
+      var color = endColors[e % endColors.length];
+      for (var a = 0; a < end.arrows.length; a++) {
+        var arrow = end.arrows[a];
+        
+        eCtx.beginPath();
+        eCtx.arc(arrow.x, arrow.y, 7, 0, Math.PI * 2);
+        eCtx.fillStyle = color;
+        eCtx.fill();
+        eCtx.strokeStyle = '#ffffff';
+        eCtx.lineWidth = 1.5;
+        eCtx.stroke();
+
+        eCtx.fillStyle = '#ffffff';
+        eCtx.font = 'bold 9px sans-serif';
+        eCtx.textAlign = 'center';
+        eCtx.textBaseline = 'middle';
+        eCtx.fillText(end.endNum, arrow.x, arrow.y);
+      }
+    }
+
+    document.getElementById('expAiAdvice').innerHTML = analyzeFullMatch();
+
+    var expTableBody = document.getElementById('expHistoryTable');
+    var expRowsHtml = '';
+    for (var i = 0; i < endsData.length; i++) {
+      var end = endsData[i];
+      var color = endColors[i % endColors.length];
+      var badges = '';
+      for (var j = 0; j < end.arrows.length; j++) {
+        badges += '<span class="arrow-badge score-' + end.arrows[j].score + '">' + end.arrows[j].score + '</span>';
+      }
+      expRowsHtml += '<tr>' +
+        '<td><span style="display:inline-block; width:16px; height:16px; line-height:16px; background:' + color + '; color:#fff; border-radius:50%; font-size:0.7rem; margin-right:4px;">' + end.endNum + '</span>第 ' + end.endNum + ' 趟</td>' +
+        '<td>' + (end.arrows.length > 0 ? badges : '<span style="color:#ccc;">-</span>') + '</td>' +
+        '<td><strong>' + end.score + '</strong></td>' +
+      '</tr>';
+    }
+    expTableBody.innerHTML = expRowsHtml;
+
+    var minimalCard = document.getElementById('minimalExportCard');
+    html2canvas(minimalCard, {
+      scale: 2,
+      backgroundColor: '#ffffff'
+    }).then(function(canvasResult) {
+      var jpgUrl = canvasResult.toDataURL('image/jpeg', 0.92);
+      
+      var rawName = document.getElementById('studentName').value.trim();
+      var studentName = rawName || '學生';
+      var dateStr = new Date().toISOString().slice(0, 10);
+      var distStr = getDistanceString();
+
+      var fileName = studentName + '_' + dateStr + '_' + distStr + '.jpg';
+
+      var link = document.createElement('a');
+      link.download = fileName;
+      link.href = jpgUrl;
+      link.click();
+    });
+  }
+
+  window.addEventListener('beforeunload', function (e) {
+    var totalArrowsCount = endsData.reduce(function(sum, end) { return sum + end.arrows.length; }, 0);
+    if (totalArrowsCount > 0 && !isFinished) {
+      e.preventDefault();
+      e.returnValue = '測驗正在進行中，確定要離開頁面嗎？離開後請重新打開頁面即可恢復進度。';
+    }
+  });
+
+  function loadSavedDraft() {
+    var studentName = document.getElementById('studentName').value || '未具名學生';
+    var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+    
+    if (teamData[studentName] && teamData[studentName].endsData) {
+      var saved = teamData[studentName];
+      if (confirm('檢測到您上次有未完成的測驗紀錄 (' + saved.arrowCount + ')，是否要恢復紀錄？')) {
+        targetType = saved.targetType || 'triple';
+        document.getElementById('targetType').value = targetType;
+        
+        if (saved.distance) {
+          document.getElementById('distanceNum').value = saved.distance.replace('m', '');
+        }
+
+        initEndsData();
+        endsData = saved.endsData;
+        
+        checkAndUpdateFinishedState();
+        activeViewingEnd = currentEnd;
+
+        drawTarget();
+        updateUI();
+        syncToCloud();
+      } else {
+        initEndsData();
+        drawTarget();
+        updateUI();
+      }
+    } else {
+      initEndsData();
+      drawTarget();
+      updateUI();
+    }
+  }
+
+  window.addEventListener('load', loadSavedDraft);
+</script>
+
+</body>
+</html>

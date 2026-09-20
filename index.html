@@ -100,11 +100,18 @@
       font-size: 1rem; font-weight: bold; border-radius: 20px; margin-top: 15px; cursor: pointer;
     }
 
+    /* 匯出卡片樣式 */
     #minimalExportCard {
       position: absolute; left: -9999px; top: -9999px;
       width: 420px; background: #ffffff; padding: 20px; border-radius: 12px;
       box-sizing: border-box; text-align: center; font-family: -apple-system, sans-serif; color: #333;
     }
+    .exp-header-info {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #1976d2;
+    }
+    .exp-title { font-size: 1.1rem; font-weight: bold; color: #1976d2; text-align: left; }
+    .exp-time { font-size: 0.85rem; font-weight: bold; color: #555; text-align: right; }
     .mini-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
     .mini-stat-box { background: #f4f6f8; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
     .mini-stat-val { font-size: 1.4rem; font-weight: bold; color: #1976d2; }
@@ -211,7 +218,13 @@
   </div>
 </div>
 
+<!-- 匯出用的隱藏成績單結構 -->
 <div id="minimalExportCard">
+  <div class="exp-header-info">
+    <div class="exp-title">🏹 <span id="expStudentName">學生</span> 測驗成績單</div>
+    <div class="exp-time">📅 <span id="expTestDate">2026/09/20</span></div>
+  </div>
+
   <div class="mini-stats-grid">
     <div class="mini-stat-box">
       <div class="mini-stat-val" id="expTotalScore">0</div>
@@ -876,16 +889,34 @@
     }
   }
 
-  // 📱 iOS Safari / iPhone 專用預覽彈窗相容機制
+  // 📅 取得當前日期格式 (YYYY/MM/DD)
+  function getFormattedCurrentDate() {
+    var now = new Date();
+    var yyyy = now.getFullYear();
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    return yyyy + '/' + mm + '/' + dd;
+  }
+
+  // 📸 生成與下載 JPG（只記錄年月日）
   function downloadMinimalJPG() {
     var btn = document.getElementById('exportBtn');
     btn.innerText = '⏳ 正在生成成績單中...';
     btn.disabled = true;
 
+    // 1. 填入測驗日期與姓名
+    var rawName = document.getElementById('studentName').value.trim();
+    var studentName = rawName || '學生';
+    var currentDateStr = getFormattedCurrentDate();
+
+    document.getElementById('expStudentName').innerText = studentName;
+    document.getElementById('expTestDate').innerText = currentDateStr;
+
     document.getElementById('expTotalScore').innerText = document.getElementById('totalScore').innerText;
     document.getElementById('expArrowCount').innerText = document.getElementById('arrowCount').innerText;
     document.getElementById('expX10Count').innerText = document.getElementById('x10Count').innerText;
 
+    // 2. 繪製靶面落點
     var expCanvas = document.getElementById('exportCanvas');
     expCanvas.width = 360;
     expCanvas.height = (targetType === 'single' || targetType === 'compound') ? 360 : 480;
@@ -945,6 +976,7 @@
     }
     expTableBody.innerHTML = expRowsHtml;
 
+    // 3. 截圖轉換為圖片
     var minimalCard = document.getElementById('minimalExportCard');
     html2canvas(minimalCard, {
       scale: 2,

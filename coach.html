@@ -96,20 +96,28 @@
   } catch(e) { console.log("Firebase 初始化失敗"); }
 
   var coachViewState = {};
+  var cachedTeamData = {};
+
+  function getSafeArray(data) {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    return Object.values(data);
+  }
 
   if (database) {
     database.ref('students').on('value', function(snapshot) {
-      var teamData = snapshot.val() || {};
-      updateDashboardData(teamData);
+      cachedTeamData = snapshot.val() || {};
+      updateDashboardData(cachedTeamData);
     });
   } else {
     setInterval(function() {
-      updateDashboardData();
+      cachedTeamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+      updateDashboardData(cachedTeamData);
     }, 1000);
   }
 
   function updateDashboardData(data) {
-    var teamData = data || JSON.parse(localStorage.getItem('archery_team_data') || '{}');
+    var teamData = data || cachedTeamData;
     var dashboard = document.getElementById('coachDashboard');
     if (!dashboard) return;
     
@@ -132,12 +140,12 @@
         break;
       }
 
-      document.getElementById('name_' + i).innerText = student.name;
-      document.getElementById('dist_' + i).innerText = '(' + student.distance + ')';
-      document.getElementById('score_' + i).innerText = student.totalScore;
-      document.getElementById('count_' + i).innerText = student.arrowCount;
-      document.getElementById('x10_' + i).innerText = student.x10Count;
-      document.getElementById('time_' + i).innerText = student.lastUpdated;
+      document.getElementById('name_' + i).innerText = student.name || '未具名';
+      document.getElementById('dist_' + i).innerText = '(' + (student.distance || '18m') + ')';
+      document.getElementById('score_' + i).innerText = student.totalScore || 0;
+      document.getElementById('count_' + i).innerText = student.arrowCount || '0';
+      document.getElementById('x10_' + i).innerText = student.x10Count || '0 / 0';
+      document.getElementById('time_' + i).innerText = student.lastUpdated || '';
 
       var selectEl = document.getElementById('select_' + i);
       var selectedEnd = coachViewState[student.name] || (selectEl ? selectEl.value : 'all');
@@ -159,7 +167,8 @@
     for (var i = 0; i < keys.length; i++) {
       var student = teamData[keys[i]];
       var currentViewingEnd = coachViewState[student.name] || 'all';
-      var maxEndsCount = (student.endsData) ? student.endsData.length : 6;
+      var endsList = getSafeArray(student.endsData);
+      var maxEndsCount = endsList.length > 0 ? endsList.length : 6;
 
       var options = '<option value="all" ' + (currentViewingEnd === 'all' ? 'selected' : '') + '>🎯 全場總落點 (全部箭隻)</option>';
       for (var e = 1; e <= maxEndsCount; e++) {
@@ -170,10 +179,10 @@
 
       html += '<div class="student-card" id="card_' + i + '">' +
         '<div class="student-info">' +
-          '<div class="student-name"><span id="name_' + i + '">' + student.name + '</span> <span id="dist_' + i + '" style="font-size: 0.8rem; font-weight: normal; color: #666;">(' + student.distance + ')</span></div>' +
+          '<div class="student-name"><span id="name_' + i + '">' + (student.name || '') + '</span> <span id="dist_' + i + '" style="font-size: 0.8rem; font-weight: normal; color: #666;">(' + (student.distance || '18m') + ')</span></div>' +
           '<div style="display: flex; justify-content: space-between; align-items: baseline;">' +
-            '<div class="student-score"><span id="score_' + i + '">' + student.totalScore + '</span> <span style="font-size: 0.8rem; color: #666;">分</span></div>' +
-            '<div style="font-size: 0.85rem; font-weight: bold; color: #555;" id="count_' + i + '">' + student.arrowCount + '</div>' +
+            '<div class="student-score"><span id="score_' + i + '">' + (student.totalScore || 0) + '</span> <span style="font-size: 0.8rem; color: #666;">分</span></div>' +
+            '<div style="font-size: 0.85rem; font-weight: bold; color: #555;" id="count_' + i + '">' + (student.arrowCount || '0') + '</div>' +
           '</div>' +
           '<div style="margin-top: 5px;">' +
             '<label style="font-size: 0.8rem;">觀看趟次落點：</label>' +
@@ -196,7 +205,7 @@
         '</div>' +
 
         '<div style="font-size: 0.75rem; color: #666; margin-top: 8px; width: 100%; text-align: right;">' +
-          '10分/X分：<strong id="x10_' + i + '">' + student.x10Count + '</strong> | 更新：<span id="time_' + i + '">' + student.lastUpdated + '</span>' +
+          '10分/X分：<strong id="x10_' + i + '">' + (student.x10Count || '0 / 0') + '</strong> | 更新：<span id="time_' + i + '">' + (student.lastUpdated || '') + '</span>' +
         '</div>' +
       '</div>';
     }
@@ -205,22 +214,23 @@
 
   function updateStudentScoreTable(index, student, selectedEnd) {
     var tbody = document.getElementById('tableBody_' + index);
-    if (!tbody || !student.endsData) return;
+    if (!tbody) return;
 
+    var endsList = getSafeArray(student.endsData);
     var html = '';
-    for (var e = 0; e < student.endsData.length; e++) {
-      var end = student.endsData[e];
-      var arrows = end.arrows || [];
+    for (var e = 0; e < endsList.length; e++) {
+      var end = endsList[e];
+      var arrows = getSafeArray(end.arrows);
       var badgesHtml = '';
       for (var a = 0; a < arrows.length; a++) {
         var scoreVal = arrows[a].score;
         badgesHtml += '<span class="arrow-badge score-' + scoreVal + '">' + scoreVal + '</span>';
       }
 
-      var isSelected = (selectedEnd !== 'all' && parseInt(selectedEnd) === end.endNum);
+      var isSelected = (selectedEnd !== 'all' && parseInt(selectedEnd) === (e + 1));
 
       html += '<tr class="' + (isSelected ? 'active-row' : '') + '">' +
-        '<td>第 ' + end.endNum + ' 趟</td>' +
+        '<td>第 ' + (e + 1) + ' 趟</td>' +
         '<td>' + (arrows.length > 0 ? badgesHtml : '<span style="color:#ccc;">-</span>') + '</td>' +
         '<td><strong>' + (end.score || 0) + '</strong></td>' +
       '</tr>';
@@ -228,7 +238,6 @@
     tbody.innerHTML = html;
   }
 
-  // 🎯 精準繪製靶面：確保單靶/複合弓6箭與三聯靶3箭均完整渲染
   function drawStudentTarget(canvas, student, selectedEnd) {
     var mCtx = canvas.getContext('2d');
     mCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -244,17 +253,17 @@
     }
 
     var viewingEndArrows = [];
+    var endsList = getSafeArray(student.endsData);
+
     if (selectedEnd === 'all') {
-      if (student.endsData) {
-        for (var e = 0; e < student.endsData.length; e++) {
-          var arr = student.endsData[e].arrows || [];
-          viewingEndArrows = viewingEndArrows.concat(arr);
-        }
+      for (var e = 0; e < endsList.length; e++) {
+        var arr = getSafeArray(endsList[e].arrows);
+        viewingEndArrows = viewingEndArrows.concat(arr);
       }
     } else {
       var endIdx = parseInt(selectedEnd) - 1;
-      if (student.endsData && student.endsData[endIdx]) {
-        viewingEndArrows = student.endsData[endIdx].arrows || [];
+      if (endsList[endIdx]) {
+        viewingEndArrows = getSafeArray(endsList[endIdx].arrows);
       }
     }
 
@@ -271,14 +280,13 @@
       }
 
       mCtx.beginPath();
-      mCtx.arc(drawX, drawY, 5, 0, Math.PI * 2);
-      mCtx.fillStyle = (selectedEnd === 'all') ? '#1976d2' : '#d32f2f'; // 單趟切換時用顯眼紅色
+      mCtx.arc(drawX, drawY, 5.5, 0, Math.PI * 2);
+      mCtx.fillStyle = (selectedEnd === 'all') ? '#1976d2' : '#d32f2f';
       mCtx.fill();
       mCtx.strokeStyle = '#ffffff';
       mCtx.lineWidth = 1.2;
       mCtx.stroke();
 
-      // 單趟模式下繪製清晰的 1~6 箭序數字
       mCtx.fillStyle = '#ffffff';
       mCtx.font = 'bold 8px sans-serif';
       mCtx.textAlign = 'center';
@@ -367,10 +375,9 @@
   function changeCoachViewEnd(studentName, value, index) {
     coachViewState[studentName] = (value === 'all') ? 'all' : parseInt(value);
     
-    var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
-    if (teamData[studentName]) {
-      drawStudentTarget(document.getElementById('miniTarget_' + index), teamData[studentName], coachViewState[studentName]);
-      updateStudentScoreTable(index, teamData[studentName], coachViewState[studentName]);
+    if (cachedTeamData[studentName]) {
+      drawStudentTarget(document.getElementById('miniTarget_' + index), cachedTeamData[studentName], coachViewState[studentName]);
+      updateStudentScoreTable(index, cachedTeamData[studentName], coachViewState[studentName]);
     }
   }
 
@@ -379,6 +386,7 @@
       if (database) database.ref('students').remove();
       localStorage.removeItem('archery_team_data');
       coachViewState = {};
+      cachedTeamData = {};
       document.getElementById('coachDashboard').innerHTML = '';
     }
   }

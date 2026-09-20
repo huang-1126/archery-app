@@ -134,7 +134,7 @@
       <input type="text" id="studentName" placeholder="請輸入姓名" value="" onchange="syncToCloud()">
       
       <div class="distance-input-wrapper">
-        <input type="number" id="distanceNum" placeholder="距離" value="18" min="1" max="100" onchange="syncToCloud()">
+        <input type="number" id="distanceNum" placeholder="距離" value="50" min="1" max="100" onchange="syncToCloud()">
         <span class="distance-unit">m</span>
       </div>
 
@@ -268,7 +268,6 @@
     database = firebase.database();
   } catch(e) { console.log("Firebase 初始化失敗"); }
 
-  // 設定預設靶型為單靶 (single)
   var targetType = 'single';
   var currentEnd = 1;
   var activeViewingEnd = 1;
@@ -855,7 +854,7 @@
   }
 
   function getDistanceString() {
-    var num = document.getElementById('distanceNum').value || '18';
+    var num = document.getElementById('distanceNum').value || '50';
     return num + 'm';
   }
 
@@ -899,6 +898,7 @@
     return yyyy + '/' + mm + '/' + dd;
   }
 
+  // 📸 生成與下載 JPG（只記錄年月日）
   function downloadMinimalJPG() {
     var btn = document.getElementById('exportBtn');
     btn.innerText = '⏳ 正在生成成績單中...';

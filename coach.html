@@ -63,6 +63,7 @@
     .mini-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.8rem; }
     .mini-table th, .mini-table td { border-bottom: 1px solid #eee; padding: 4px 2px; text-align: center; }
     .mini-table th { background: #f8f9fa; color: #555; }
+    .active-row { background-color: #e3f2fd; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -83,7 +84,6 @@
 </div>
 
 <script>
-  // 🔥 請將此處替換為您的 Firebase 網址
   var firebaseConfig = {
     databaseURL: "https://archery-team-default-rtdb.firebaseio.com/"
   };
@@ -147,7 +147,7 @@
         drawStudentTarget(miniCanvas, student, selectedEnd);
       }
 
-      updateStudentScoreTable(i, student);
+      updateStudentScoreTable(i, student, selectedEnd);
     }
   }
 
@@ -176,20 +176,18 @@
             '<div style="font-size: 0.85rem; font-weight: bold; color: #555;" id="count_' + i + '">' + student.arrowCount + '</div>' +
           '</div>' +
           '<div style="margin-top: 5px;">' +
-            '<label style="font-size: 0.8rem;">觀看靶面趟次：</label>' +
+            '<label style="font-size: 0.8rem;">觀看趟次落點：</label>' +
             '<select id="select_' + i + '" onchange="changeCoachViewEnd(\'' + student.name + '\', this.value, ' + i + ')" style="font-size: 0.8rem; padding: 2px 4px; font-weight: bold;">' + options + '</select>' +
           '</div>' +
         '</div>' +
         '<canvas id="miniTarget_' + i + '" width="200" height="' + canvasHeight + '"></canvas>' +
-        
-        // 🚨 移除了原本這裡的 AI 評語區塊
 
-        '<div style="width: 100%; max-height: 160px; overflow-y: auto; margin-top: 8px;">' +
+        '<div style="width: 100%; max-height: 180px; overflow-y: auto; margin-top: 8px;">' +
           '<table class="mini-table">' +
             '<thead>' +
               '<tr>' +
                 '<th style="width:20%;">趟次</th>' +
-                '<th style="width:65%;">每發箭隻分數</th>' +
+                '<th style="width:65%;">發箭分數 (發箭數)</th>' +
                 '<th style="width:15%;">小計</th>' +
               '</tr>' +
             '</thead>' +
@@ -205,22 +203,23 @@
     dashboard.innerHTML = html;
   }
 
-  function updateStudentScoreTable(index, student) {
+  function updateStudentScoreTable(index, student, selectedEnd) {
     var tbody = document.getElementById('tableBody_' + index);
     if (!tbody || !student.endsData) return;
 
     var html = '';
     for (var e = 0; e < student.endsData.length; e++) {
       var end = student.endsData[e];
-      // 🛠️ 關鍵修正：加入 `|| []` 避免 Firebase 沒儲存空陣列時產生報錯
-      var arrows = end.arrows || []; 
+      var arrows = end.arrows || [];
       var badgesHtml = '';
       for (var a = 0; a < arrows.length; a++) {
         var scoreVal = arrows[a].score;
         badgesHtml += '<span class="arrow-badge score-' + scoreVal + '">' + scoreVal + '</span>';
       }
 
-      html += '<tr>' +
+      var isSelected = (selectedEnd !== 'all' && parseInt(selectedEnd) === end.endNum);
+
+      html += '<tr class="' + (isSelected ? 'active-row' : '') + '">' +
         '<td>第 ' + end.endNum + ' 趟</td>' +
         '<td>' + (arrows.length > 0 ? badgesHtml : '<span style="color:#ccc;">-</span>') + '</td>' +
         '<td><strong>' + (end.score || 0) + '</strong></td>' +
@@ -229,6 +228,7 @@
     tbody.innerHTML = html;
   }
 
+  // 🎯 精準繪製靶面：確保單靶/複合弓6箭與三聯靶3箭均完整渲染
   function drawStudentTarget(canvas, student, selectedEnd) {
     var mCtx = canvas.getContext('2d');
     mCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -247,7 +247,6 @@
     if (selectedEnd === 'all') {
       if (student.endsData) {
         for (var e = 0; e < student.endsData.length; e++) {
-          // 🛠️ 關鍵修正：加入 `|| []` 避免空陣列問題
           var arr = student.endsData[e].arrows || [];
           viewingEndArrows = viewingEndArrows.concat(arr);
         }
@@ -255,7 +254,6 @@
     } else {
       var endIdx = parseInt(selectedEnd) - 1;
       if (student.endsData && student.endsData[endIdx]) {
-        // 🛠️ 關鍵修正
         viewingEndArrows = student.endsData[endIdx].arrows || [];
       }
     }
@@ -273,20 +271,19 @@
       }
 
       mCtx.beginPath();
-      mCtx.arc(drawX, drawY, 4.5, 0, Math.PI * 2);
-      mCtx.fillStyle = (selectedEnd === 'all') ? '#1976d2' : '#2e7d32';
+      mCtx.arc(drawX, drawY, 5, 0, Math.PI * 2);
+      mCtx.fillStyle = (selectedEnd === 'all') ? '#1976d2' : '#d32f2f'; // 單趟切換時用顯眼紅色
       mCtx.fill();
       mCtx.strokeStyle = '#ffffff';
-      mCtx.lineWidth = 1;
+      mCtx.lineWidth = 1.2;
       mCtx.stroke();
 
-      if (selectedEnd !== 'all') {
-        mCtx.fillStyle = '#ffffff';
-        mCtx.font = 'bold 8px sans-serif';
-        mCtx.textAlign = 'center';
-        mCtx.textBaseline = 'middle';
-        mCtx.fillText(aIdx + 1, drawX, drawY);
-      }
+      // 單趟模式下繪製清晰的 1~6 箭序數字
+      mCtx.fillStyle = '#ffffff';
+      mCtx.font = 'bold 8px sans-serif';
+      mCtx.textAlign = 'center';
+      mCtx.textBaseline = 'middle';
+      mCtx.fillText(aIdx + 1, drawX, drawY);
     }
   }
 
@@ -373,6 +370,7 @@
     var teamData = JSON.parse(localStorage.getItem('archery_team_data') || '{}');
     if (teamData[studentName]) {
       drawStudentTarget(document.getElementById('miniTarget_' + index), teamData[studentName], coachViewState[studentName]);
+      updateStudentScoreTable(index, teamData[studentName], coachViewState[studentName]);
     }
   }
 

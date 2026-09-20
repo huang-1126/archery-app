@@ -63,12 +63,6 @@
     .mini-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.8rem; }
     .mini-table th, .mini-table td { border-bottom: 1px solid #eee; padding: 4px 2px; text-align: center; }
     .mini-table th { background: #f8f9fa; color: #555; }
-
-    .coach-ai-box {
-      width: 100%; background: #f0f7ff; border-left: 3px solid #1976d2;
-      padding: 8px; border-radius: 4px; font-size: 0.78rem; color: #004085;
-      margin-top: 8px; box-sizing: border-box; line-height: 1.35;
-    }
   </style>
 </head>
 <body>
@@ -89,7 +83,7 @@
 </div>
 
 <script>
-  // 🔥 已直接嵌入您的 Firebase 雲端網址
+  // 🔥 請將此處替換為您的 Firebase 網址
   var firebaseConfig = {
     databaseURL: "https://archery-team-default-rtdb.firebaseio.com/"
   };
@@ -144,7 +138,6 @@
       document.getElementById('count_' + i).innerText = student.arrowCount;
       document.getElementById('x10_' + i).innerText = student.x10Count;
       document.getElementById('time_' + i).innerText = student.lastUpdated;
-      document.getElementById('ai_' + i).innerHTML = student.aiAdvice || "數據分析中...";
 
       var selectEl = document.getElementById('select_' + i);
       var selectedEnd = coachViewState[student.name] || (selectEl ? selectEl.value : 'all');
@@ -189,7 +182,7 @@
         '</div>' +
         '<canvas id="miniTarget_' + i + '" width="200" height="' + canvasHeight + '"></canvas>' +
         
-        '<div class="coach-ai-box" id="ai_' + i + '">數據分析中...</div>' +
+        // 🚨 移除了原本這裡的 AI 評語區塊
 
         '<div style="width: 100%; max-height: 160px; overflow-y: auto; margin-top: 8px;">' +
           '<table class="mini-table">' +
@@ -219,16 +212,18 @@
     var html = '';
     for (var e = 0; e < student.endsData.length; e++) {
       var end = student.endsData[e];
+      // 🛠️ 關鍵修正：加入 `|| []` 避免 Firebase 沒儲存空陣列時產生報錯
+      var arrows = end.arrows || []; 
       var badgesHtml = '';
-      for (var a = 0; a < end.arrows.length; a++) {
-        var scoreVal = end.arrows[a].score;
+      for (var a = 0; a < arrows.length; a++) {
+        var scoreVal = arrows[a].score;
         badgesHtml += '<span class="arrow-badge score-' + scoreVal + '">' + scoreVal + '</span>';
       }
 
       html += '<tr>' +
         '<td>第 ' + end.endNum + ' 趟</td>' +
-        '<td>' + (end.arrows.length > 0 ? badgesHtml : '<span style="color:#ccc;">-</span>') + '</td>' +
-        '<td><strong>' + end.score + '</strong></td>' +
+        '<td>' + (arrows.length > 0 ? badgesHtml : '<span style="color:#ccc;">-</span>') + '</td>' +
+        '<td><strong>' + (end.score || 0) + '</strong></td>' +
       '</tr>';
     }
     tbody.innerHTML = html;
@@ -252,13 +247,16 @@
     if (selectedEnd === 'all') {
       if (student.endsData) {
         for (var e = 0; e < student.endsData.length; e++) {
-          viewingEndArrows = viewingEndArrows.concat(student.endsData[e].arrows);
+          // 🛠️ 關鍵修正：加入 `|| []` 避免空陣列問題
+          var arr = student.endsData[e].arrows || [];
+          viewingEndArrows = viewingEndArrows.concat(arr);
         }
       }
     } else {
       var endIdx = parseInt(selectedEnd) - 1;
       if (student.endsData && student.endsData[endIdx]) {
-        viewingEndArrows = student.endsData[endIdx].arrows;
+        // 🛠️ 關鍵修正
+        viewingEndArrows = student.endsData[endIdx].arrows || [];
       }
     }
 
